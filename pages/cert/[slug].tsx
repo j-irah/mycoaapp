@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabaseClient';
-import QRCode from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function COAPage() {
   const router = useRouter();
@@ -61,9 +61,8 @@ export default function COAPage() {
 
       <div style={{ marginTop: '2rem' }}>
         <h2>Scan this QR code:</h2>
-        <QRCode value={qrUrl} size={200} />
+        <QRCodeCanvas value={qrUrl} size={200} />
       </div>
     </div>
   );
 }
-
