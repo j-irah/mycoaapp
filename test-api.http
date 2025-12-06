@@ -1,0 +1,11 @@
+POST http://localhost:3000/api/create-coa
+Content-Type: application/json
+
+{
+  "comic_title": "Venom",
+  "issue_number": "7",
+  "signed_by": "Clayton Crain",
+  "signed_date": "2025-08-07",
+  "signed_location": "Fanexpo Boston",
+  "witnessed_by": "Metaverse Comics"
+}
