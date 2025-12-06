@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabaseClient';
-import QRCode from 'qrcode.react'; // install with `npm i qrcode.react`
+import QRCode from 'qrcode.react';
 
 type COA = {
 id: string;
@@ -25,17 +25,18 @@ if (!slug) return;
 async function fetchCoa() {
   setLoading(true);
   const { data, error } = await supabase
-    .from<COA>('signatures')
+    .from('signatures')
     .select('*')
     .eq('qr_id', slug)
     .single();
 
-  if (error) {
+  if (error || !data) {
     console.error(error);
     setError('COA not found');
     setCoa(null);
   } else {
-    setCoa(data);
+    // Cast data to COA type
+    setCoa(data as COA);
     setError(null);
   }
   setLoading(false);
@@ -50,7 +51,6 @@ if (loading) return <p>Loading COA...</p>;
 if (error) return <p>{error}</p>;
 if (!coa) return <p>No COA data available</p>;
 
-// Construct the URL that the QR code will point to
 const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
 return (
@@ -66,3 +66,4 @@ return (
 
 );
 }
+
