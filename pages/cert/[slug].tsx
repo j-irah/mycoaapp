@@ -1,4 +1,4 @@
-// @ts-nocheck  <-- disable TypeScript checking for THIS file only
+// @ts-nocheck
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
