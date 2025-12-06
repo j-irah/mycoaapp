@@ -1,3 +1,4 @@
+// pages/api/create-coa.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../lib/supabaseAdmin'
 import { generateSlug } from '../../lib/slugs'
@@ -6,27 +7,27 @@ import QRCode from 'qrcode'
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { comic_title, issue_number, signed_by, signed_date, signed_location, witnessed_by } = req.body
+  try {
+    const { comic_title, signed_by, signed_date, location, witness } = req.body
+    const qr_id = generateSlug() // unique ID for COA
 
-  const qr_id = generateSlug(12) // Unique QR ID
-  const qrDataUrl = await QRCode.toDataURL(`${process.env.NEXT_PUBLIC_BASE_URL}/qr/${qr_id}`)
+    // Insert COA record in Supabase
+    const { data, error } = await supabaseAdmin
+      .from('signatures')
+      .insert({ comic_title, signed_by, signed_date, location, witness, qr_id })
+      .select()
+    
+    if (error) throw error
+    if (!data || data.length === 0) throw new Error('No COA created')
 
-  const { data, error } = await supabaseAdmin
-    .from('signatures')
-    .insert([
-      {
-        comic_title,
-        issue_number,
-        signed_by,
-        signed_date,
-        signed_location,
-        witnessed_by,
-        qr_id,
-        qr_code_base64: qrDataUrl
-      }
-    ])
-    .select()
+    // Generate QR code pointing to production URL
+    const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${qr_id}`
+    const qrCodeDataUrl = await QRCode.toDataURL(qrUrl)
 
-  if (error) return res.status(500).json({ error: error.message })
-  res.status(200).json({ record: data[0] })
+    return res.status(200).json({ coa: data[0], qrCode: qrCodeDataUrl })
+  } catch (err: any) {
+    console.error(err)
+    return res.status(500).json({ error: err.message })
+  }
 }
+
