@@ -47,13 +47,26 @@ export default function COAPage() {
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: 600, margin: '0 auto' }}>
       <h1>Certificate of Authenticity</h1>
+
       <p>
-        <strong>Comic:</strong> {coa.comic_title}
+        <strong>Title:</strong> {coa.comic_title}
+      </p>
+      <p>
+        <strong>Issue #:</strong> {coa.issue_number}
       </p>
       <p>
         <strong>Signed by:</strong> {coa.signed_by}
+      </p>
+      <p>
+        <strong>Signed date:</strong> {coa.signed_date}
+      </p>
+      <p>
+        <strong>Signed location:</strong> {coa.signed_location}
+      </p>
+      <p>
+        <strong>Witnessed by:</strong> {coa.witnessed_by}
       </p>
       <p>
         <strong>QR ID:</strong> {coa.qr_id}
