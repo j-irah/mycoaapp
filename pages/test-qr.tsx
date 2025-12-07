@@ -34,7 +34,14 @@ export default function TestQRPage() {
   const qrUrl = coa ? `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}` : '';
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: 700, margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem',
+        fontFamily: 'Arial, sans-serif',
+        maxWidth: 800,
+        margin: '0 auto',
+      }}
+    >
       <h1>Test COA QR Code</h1>
 
       <input
@@ -54,6 +61,22 @@ export default function TestQRPage() {
       {coa && (
         <div style={{ marginTop: '2rem', borderTop: '1px solid #ccc', paddingTop: '1rem' }}>
           <h2>COA Details (from Supabase)</h2>
+
+          {/* IMAGE PREVIEW */}
+          {coa.image_url && (
+            <div style={{ margin: '1rem 0' }}>
+              <img
+                src={coa.image_url}
+                alt={`${coa.comic_title} cover`}
+                style={{
+                  maxWidth: '250px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                }}
+              />
+            </div>
+          )}
+
           <p>
             <strong>Title:</strong> {coa.comic_title}
           </p>

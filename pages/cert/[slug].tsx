@@ -47,9 +47,32 @@ export default function COAPage() {
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: 600, margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem',
+        fontFamily: 'Arial, sans-serif',
+        maxWidth: 700,
+        margin: '0 auto',
+      }}
+    >
       <h1>Certificate of Authenticity</h1>
 
+      {/* IMAGE SECTION */}
+      {coa.image_url && (
+        <div style={{ margin: '1.5rem 0' }}>
+          <img
+            src={coa.image_url}
+            alt={`${coa.comic_title} cover`}
+            style={{
+              maxWidth: '100%',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+            }}
+          />
+        </div>
+      )}
+
+      {/* DETAILS */}
       <p>
         <strong>Title:</strong> {coa.comic_title}
       </p>
