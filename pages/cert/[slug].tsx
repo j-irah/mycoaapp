@@ -72,88 +72,90 @@ export default function COAPage() {
   return (
     <>
       <div style={pageBackgroundStyle}>
-        <div style={certificateOuterStyle}>
-          <div style={certificateStyle}>
-            {/* Heading */}
-            <h1 style={headingStyle}>Certificate of Authenticity</h1>
-            <p style={subtitleStyle}>
-              This document certifies the authenticity of the signed comic detailed below.
-            </p>
-
-            {/* Serial number (using qr_id) */}
-            <p style={serialNumberStyle}>
-              COA Serial: <span>{coa.qr_id}</span>
-            </p>
-
-            <hr style={dividerStyle} />
-
-            {/* Comic Image */}
-            {coa.image_url && (
-              <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-                <img
-                  src={coa.image_url}
-                  alt="COA Comic"
-                  style={{
-                    maxWidth: "100%",
-                    height: "auto",
-                    borderRadius: "8px",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Details */}
-            <div style={detailsListStyle}>
-              <p>
-                <span style={labelStyle}>Title:</span> {coa.comic_title}
-              </p>
-              <p>
-                <span style={labelStyle}>Issue #:</span>{" "}
-                {coa.issue_number || "—"}
-              </p>
-              <p>
-                <span style={labelStyle}>Signed by:</span>{" "}
-                {coa.signed_by || "—"}
-              </p>
-              <p>
-                <span style={labelStyle}>Signed date:</span>{" "}
-                {coa.signed_date || "—"}
-              </p>
-              <p>
-                <span style={labelStyle}>Signed location:</span>{" "}
-                {coa.signed_location || "—"}
-              </p>
-              <p>
-                <span style={labelStyle}>Witnessed by:</span>{" "}
-                {coa.witnessed_by || "—"}
-              </p>
-            </div>
-
-            {/* Footer with circular logo + verified seal */}
-            <div style={footerStyle}>
-              <p style={{ marginBottom: "0.25rem" }}>Verified by</p>
-              <p style={{ fontWeight: "bold", marginBottom: "0.75rem" }}>
-                MyCOA Authentication System
+        <div style={certificateOuterWrapperStyle}>
+          <div style={certificateOuterStyle}>
+            <div style={certificateStyle}>
+              {/* Heading */}
+              <h1 style={headingStyle}>Certificate of Authenticity</h1>
+              <p style={subtitleStyle}>
+                This document certifies the authenticity of the signed comic detailed below.
               </p>
 
-              <div style={footerCirclesStyle}>
-                {/* Circular logo */}
-                <div style={logoCircleStyle}>
+              {/* Serial number (using qr_id) */}
+              <p style={serialNumberStyle}>
+                COA Serial: <span>{coa.qr_id}</span>
+              </p>
+
+              <hr style={dividerStyle} />
+
+              {/* Comic Image */}
+              {coa.image_url && (
+                <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
                   <img
-                    src="/logo.png"
-                    alt="MyCOA Logo"
+                    src={coa.image_url}
+                    alt="COA Comic"
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover", // fills circle, no square
+                      maxWidth: "100%",
+                      height: "auto",
+                      borderRadius: "8px",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
                     }}
                   />
                 </div>
+              )}
 
-                {/* Verified seal */}
-                <div style={sealStyle}>
-                  <span style={sealTextStyle}>Verified</span>
+              {/* Details */}
+              <div style={detailsListStyle}>
+                <p>
+                  <span style={labelStyle}>Title:</span> {coa.comic_title}
+                </p>
+                <p>
+                  <span style={labelStyle}>Issue #:</span>{" "}
+                  {coa.issue_number || "—"}
+                </p>
+                <p>
+                  <span style={labelStyle}>Signed by:</span>{" "}
+                  {coa.signed_by || "—"}
+                </p>
+                <p>
+                  <span style={labelStyle}>Signed date:</span>{" "}
+                  {coa.signed_date || "—"}
+                </p>
+                <p>
+                  <span style={labelStyle}>Signed location:</span>{" "}
+                  {coa.signed_location || "—"}
+                </p>
+                <p>
+                  <span style={labelStyle}>Witnessed by:</span>{" "}
+                  {coa.witnessed_by || "—"}
+                </p>
+              </div>
+
+              {/* Footer with circular logo + verified seal */}
+              <div style={footerStyle}>
+                <p style={{ marginBottom: "0.25rem" }}>Verified by</p>
+                <p style={{ fontWeight: "bold", marginBottom: "0.75rem" }}>
+                  MyCOA Authentication System
+                </p>
+
+                <div style={footerCirclesStyle}>
+                  {/* Circular logo */}
+                  <div style={logoCircleStyle}>
+                    <img
+                      src="/logo.png"
+                      alt="MyCOA Logo"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover", // fills circle
+                      }}
+                    />
+                  </div>
+
+                  {/* Verified seal */}
+                  <div style={sealStyle}>
+                    <span style={sealTextStyle}>Verified</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -178,11 +180,19 @@ export default function COAPage() {
 const pageBackgroundStyle = {
   minHeight: "100vh",
   margin: 0,
-  padding: "2rem 1rem",
+  padding: "1rem 0.5rem", // smaller padding so no cutoff
   backgroundColor: "#e5e5e5",
   display: "flex",
   justifyContent: "center",
   alignItems: "flex-start",
+  boxSizing: "border-box" as const,
+};
+
+const certificateOuterWrapperStyle = {
+  width: "100%",
+  maxWidth: "800px",
+  margin: "0 auto",
+  boxSizing: "border-box" as const,
 };
 
 const certificateOuterStyle = {
@@ -190,21 +200,22 @@ const certificateOuterStyle = {
   borderRadius: "14px",
   backgroundImage:
     "linear-gradient(135deg, #f7d488, #c9a86a, #9f7f4f, #c9a86a, #f7d488)",
+  boxSizing: "border-box" as const,
 };
 
 const certificateStyle = {
   backgroundColor: "#fdfaf4",
   borderRadius: "12px",
-  maxWidth: "800px",
   width: "100%",
-  padding: "2rem 2.5rem",
+  padding: "1.5rem 1.5rem",
   fontFamily: 'Georgia, "Times New Roman", serif',
   boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
+  boxSizing: "border-box" as const,
 };
 
 const headingStyle = {
   textAlign: "center" as const,
-  fontSize: "1.8rem",
+  fontSize: "1.6rem",
   letterSpacing: "0.08em",
   textTransform: "uppercase" as const,
   marginBottom: "0.5rem",
@@ -212,7 +223,7 @@ const headingStyle = {
 
 const subtitleStyle = {
   textAlign: "center" as const,
-  fontSize: "0.95rem",
+  fontSize: "0.9rem",
   color: "#555",
   marginBottom: "1rem",
 };
@@ -229,25 +240,25 @@ const serialNumberStyle = {
 const dividerStyle = {
   border: 0,
   borderTop: "1px solid #d3c19b",
-  marginBottom: "1.5rem",
+  marginBottom: "1.25rem",
 };
 
 const detailsListStyle = {
   display: "flex",
   flexDirection: "column" as const,
-  gap: "0.4rem",
-  fontSize: "1rem",
-  lineHeight: 1.6,
+  gap: "0.35rem",
+  fontSize: "0.95rem",
+  lineHeight: 1.5,
 };
 
 const labelStyle = {
   fontWeight: "bold",
-  minWidth: "140px",
+  minWidth: "130px",
   display: "inline-block",
 };
 
 const footerStyle = {
-  marginTop: "1.5rem",
+  marginTop: "1.25rem",
   textAlign: "center" as const,
   fontSize: "0.9rem",
 };
@@ -256,13 +267,13 @@ const footerCirclesStyle = {
   marginTop: "0.75rem",
   display: "flex",
   justifyContent: "center" as const,
-  gap: "1.5rem",
+  gap: "1.25rem",
   flexWrap: "wrap" as const,
 };
 
 const logoCircleStyle = {
-  width: 90,
-  height: 90,
+  width: 80,
+  height: 80,
   borderRadius: "50%",
   border: "3px solid #c9a86a",
   display: "flex",
@@ -273,8 +284,8 @@ const logoCircleStyle = {
 };
 
 const sealStyle = {
-  width: 90,
-  height: 90,
+  width: 80,
+  height: 80,
   borderRadius: "50%",
   border: "3px solid #c9a86a",
   display: "flex",
@@ -286,7 +297,7 @@ const sealStyle = {
 };
 
 const sealTextStyle = {
-  fontSize: "0.8rem",
+  fontSize: "0.75rem",
   textTransform: "uppercase" as const,
   letterSpacing: "0.08em",
 };
