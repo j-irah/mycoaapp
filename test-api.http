@@ -2,10 +2,10 @@ POST http://localhost:3000/api/create-coa
 Content-Type: application/json
 
 {
-  "comic_title": "Venom",
-  "issue_number": "7",
-  "signed_by": "Clayton Crain",
-  "signed_date": "2025-08-07",
-  "signed_location": "Fanexpo Boston",
+  "comic_title": "Stan Lee Unscripted",
+  "issue_number": "1",
+  "signed_by": "Clayton Crain, Roy Thomas, Jonathan Bolerjack",
+  "signed_date": "2025-10-09",
+  "signed_location": "New York Comic Con",
   "witnessed_by": "Metaverse Comics"
 }

@@ -41,7 +41,7 @@ export default function UploadImagePage() {
 
       if (uploadError) {
         console.error(uploadError);
-        setError('Error uploading file to storage.');
+        setError('Error uploading file to storage: ' + uploadError.message)
         setUploading(false);
         return;
       }
