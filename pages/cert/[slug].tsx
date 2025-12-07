@@ -69,12 +69,25 @@ export default function COAPage() {
     );
   }
 
+  const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
   return (
     <>
       <div style={pageBackgroundStyle}>
         <div style={certificateOuterWrapperStyle}>
           <div style={certificateOuterStyle}>
             <div style={certificateStyle}>
+              {/* Print button (hidden when printing) */}
+              <div style={printButtonWrapperStyle} id="print-button-wrapper">
+                <button type="button" style={printButtonStyle} onClick={handlePrint}>
+                  Print / Save as PDF
+                </button>
+              </div>
+
               {/* Heading */}
               <h1 style={headingStyle}>Certificate of Authenticity</h1>
               <p style={subtitleStyle}>
@@ -147,7 +160,7 @@ export default function COAPage() {
                       style={{
                         width: "100%",
                         height: "100%",
-                        objectFit: "cover", // fills circle
+                        objectFit: "cover",
                       }}
                     />
                   </div>
@@ -169,6 +182,9 @@ export default function COAPage() {
           body {
             background: #ffffff !important;
           }
+          #print-button-wrapper {
+            display: none !important;
+          }
         }
       `}</style>
     </>
@@ -180,7 +196,7 @@ export default function COAPage() {
 const pageBackgroundStyle = {
   minHeight: "100vh",
   margin: 0,
-  padding: "1rem 0.5rem", // smaller padding so no cutoff
+  padding: "1rem 0.5rem",
   backgroundColor: "#e5e5e5",
   display: "flex",
   justifyContent: "center",
@@ -211,6 +227,21 @@ const certificateStyle = {
   fontFamily: 'Georgia, "Times New Roman", serif',
   boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
   boxSizing: "border-box" as const,
+};
+
+const printButtonWrapperStyle = {
+  display: "flex",
+  justifyContent: "flex-end" as const,
+  marginBottom: "0.75rem",
+};
+
+const printButtonStyle = {
+  padding: "0.4rem 0.8rem",
+  fontSize: "0.9rem",
+  borderRadius: "6px",
+  border: "1px solid #c9a86a",
+  backgroundColor: "#f7e4b8",
+  cursor: "pointer",
 };
 
 const headingStyle = {
