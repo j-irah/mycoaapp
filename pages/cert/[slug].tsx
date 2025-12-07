@@ -100,35 +100,32 @@ export default function COAPage() {
           </div>
         )}
 
-        <div style={detailsGridStyle}>
-          <div>
-            <p>
-              <strong>Title:</strong> {coa.comic_title}
-            </p>
-            <p>
-              <strong>Issue #:</strong> {coa.issue_number}
-            </p>
-            <p>
-              <strong>Signed by:</strong> {coa.signed_by}
-            </p>
-          </div>
-          <div>
-            <p>
-              <strong>Signed date:</strong> {coa.signed_date}
-            </p>
-            <p>
-              <strong>Signed location:</strong> {coa.signed_location}
-            </p>
-            <p>
-              <strong>Witnessed by:</strong> {coa.witnessed_by}
-            </p>
-          </div>
+        {/* Details – single vertical list (no columns, no weird breaks) */}
+        <div style={{ marginTop: '1rem', lineHeight: '1.6' }}>
+          <p>
+            <strong>Title:</strong> {coa.comic_title}
+          </p>
+          <p>
+            <strong>Issue #:</strong> {coa.issue_number}
+          </p>
+          <p>
+            <strong>Signed by:</strong> {coa.signed_by}
+          </p>
+          <p>
+            <strong>Signed date:</strong> {coa.signed_date}
+          </p>
+          <p>
+            <strong>Signed location:</strong> {coa.signed_location}
+          </p>
+          <p>
+            <strong>Witnessed by:</strong> {coa.witnessed_by}
+          </p>
         </div>
 
         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
           <h2 style={{ marginBottom: '0.75rem' }}>Verified QR Code</h2>
           <QRCodeCanvas value={qrUrl} size={200} />
-          {/* QR ID is intentionally NOT displayed here */}
+          {/* QR ID is intentionally NOT displayed */}
         </div>
       </div>
     </div>
@@ -160,11 +157,4 @@ const titleStyle: React.CSSProperties = {
   marginBottom: '1.5rem',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
-};
-
-const detailsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  gap: '1.5rem',
-  marginTop: '0.5rem',
 };
