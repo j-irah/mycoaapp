@@ -1,160 +1,130 @@
-// pages/cert/[slug].tsx
-// @ts-nocheck
-
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabaseClient';
-import { QRCodeCanvas } from 'qrcode.react';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { supabase } from "../../lib/supabaseClient";
 
 type COA = {
   id: string;
   comic_title: string;
-  issue_number: string;
-  signed_by: string;
-  signed_date: string;
-  signed_location: string;
-  witnessed_by: string;
-  image_url?: string;
+  issue_number: string | null;
+  signed_by: string | null;
+  signed_date: string | null;
+  signed_location: string | null;
+  witnessed_by: string | null;
+  image_url: string | null;
   qr_id: string;
 };
 
 export default function COAPage() {
   const router = useRouter();
-  const slugParam = router.query.slug;
-  const slug = Array.isArray(slugParam) ? slugParam[0] : slugParam;
+  const { slug } = router.query;
 
   const [coa, setCoa] = useState<COA | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Load COA record by QR ID
   useEffect(() => {
     if (!slug) return;
 
-    async function fetchCoa() {
-      setLoading(true);
-      setError(null);
-
+    const loadCoa = async () => {
       const { data, error } = await supabase
-        .from<COA>('signatures')
-        .select('*')
-        .eq('qr_id', slug)
+        .from("signatures")
+        .select("*")
+        .eq("qr_id", slug)
         .single();
 
       if (error || !data) {
-        console.error(error);
-        setError('Certificate not found.');
-        setCoa(null);
-      } else {
-        setCoa(data);
+        setError("Certificate not found.");
+        setLoading(false);
+        return;
       }
 
+      setCoa(data as COA);
       setLoading(false);
-    }
+    };
 
-    fetchCoa();
+    loadCoa();
   }, [slug]);
 
-  if (loading) {
-    return (
-      <div style={containerStyle}>
-        <p>Loading certificate...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={containerStyle}>
-        <p style={{ color: 'red' }}>{error}</p>
-      </div>
-    );
-  }
-
-  if (!coa) {
-    return (
-      <div style={containerStyle}>
-        <p>No certificate data available.</p>
-      </div>
-    );
-  }
-
-  const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
+  if (loading) return <p style={{ padding: "2rem" }}>Loading COA…</p>;
+  if (error) return <p style={{ padding: "2rem", color: "red" }}>{error}</p>;
+  if (!coa) return <p>No certificate available.</p>;
 
   return (
-    <div style={containerStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>Certificate of Authenticity</h1>
+    <div
+      style={{
+        padding: "1.5rem",
+        maxWidth: "700px",
+        margin: "0 auto",
+        fontFamily: "Arial, sans-serif",
+        lineHeight: "1.6",
+      }}
+    >
+      <h1 style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+        Certificate of Authenticity
+      </h1>
 
-        {/* Optional image */}
-        {coa.image_url && (
-          <div style={{ margin: '1.5rem 0' }}>
-            <img
-              src={coa.image_url}
-              alt={`${coa.comic_title} cover`}
-              style={{
-                maxWidth: '100%',
-                borderRadius: '8px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-              }}
-            />
-          </div>
-        )}
-
-        {/* Details – single vertical list (no columns, no weird breaks) */}
-        <div style={{ marginTop: '1rem', lineHeight: '1.6' }}>
-          <p>
-            <strong>Title:</strong> {coa.comic_title}
-          </p>
-          <p>
-            <strong>Issue #:</strong> {coa.issue_number}
-          </p>
-          <p>
-            <strong>Signed by:</strong> {coa.signed_by}
-          </p>
-          <p>
-            <strong>Signed date:</strong> {coa.signed_date}
-          </p>
-          <p>
-            <strong>Signed location:</strong> {coa.signed_location}
-          </p>
-          <p>
-            <strong>Witnessed by:</strong> {coa.witnessed_by}
-          </p>
+      {/* Display COA Image */}
+      {coa.image_url && (
+        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+          <img
+            src={coa.image_url}
+            alt="COA Comic"
+            style={{
+              maxWidth: "100%",
+              height: "auto",
+              borderRadius: "8px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }}
+          />
         </div>
+      )}
 
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <h2 style={{ marginBottom: '0.75rem' }}>Verified QR Code</h2>
-          <QRCodeCanvas value={qrUrl} size={200} />
-          {/* QR ID is intentionally NOT displayed */}
-        </div>
+      {/* Details Section */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.4rem",
+          fontSize: "1rem",
+        }}
+      >
+        <p>
+          <strong>Title:</strong> {coa.comic_title}
+        </p>
+
+        <p>
+          <strong>Issue #:</strong> {coa.issue_number || "—"}
+        </p>
+
+        <p>
+          <strong>Signed by:</strong> {coa.signed_by || "—"}
+        </p>
+
+        <p>
+          <strong>Signed date:</strong> {coa.signed_date || "—"}
+        </p>
+
+        <p>
+          <strong>Signed location:</strong> {coa.signed_location || "—"}
+        </p>
+
+        <p>
+          <strong>Witnessed by:</strong> {coa.witnessed_by || "—"}
+        </p>
+      </div>
+
+      {/* Optional footer */}
+      <div
+        style={{
+          marginTop: "2rem",
+          textAlign: "center",
+          fontSize: "0.85rem",
+          color: "#666",
+        }}
+      >
+        <p>Verified through MyCOA Authentication System</p>
       </div>
     </div>
   );
 }
-
-const containerStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'flex-start',
-  padding: '2rem 1rem',
-  fontFamily: 'Arial, sans-serif',
-  backgroundColor: '#f5f5f5',
-};
-
-const cardStyle: React.CSSProperties = {
-  backgroundColor: '#ffffff',
-  maxWidth: 800,
-  width: '100%',
-  padding: '2rem',
-  borderRadius: '12px',
-  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-  border: '1px solid #e0e0e0',
-};
-
-const titleStyle: React.CSSProperties = {
-  textAlign: 'center',
-  marginBottom: '1.5rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-};
