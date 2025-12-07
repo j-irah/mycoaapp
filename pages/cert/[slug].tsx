@@ -74,18 +74,13 @@ export default function COAPage() {
       <div style={pageBackgroundStyle}>
         <div style={certificateOuterStyle}>
           <div style={certificateStyle}>
-            {/* Watermark */}
-            <div style={watermarkStyle}>
-              MYCOA • {coa.qr_id}
-            </div>
-
             {/* Heading */}
             <h1 style={headingStyle}>Certificate of Authenticity</h1>
             <p style={subtitleStyle}>
               This document certifies the authenticity of the signed comic detailed below.
             </p>
 
-            {/* Serial number */}
+            {/* Serial number (using qr_id) */}
             <p style={serialNumberStyle}>
               COA Serial: <span>{coa.qr_id}</span>
             </p>
@@ -102,7 +97,7 @@ export default function COAPage() {
                     maxWidth: "100%",
                     height: "auto",
                     borderRadius: "8px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
                   }}
                 />
               </div>
@@ -110,18 +105,29 @@ export default function COAPage() {
 
             {/* Details */}
             <div style={detailsListStyle}>
-              <p><span style={labelStyle}>Title:</span> {coa.comic_title}</p>
-              <p><span style={labelStyle}>Issue #:</span> {coa.issue_number || "—"}</p>
-              <p><span style={labelStyle}>Signed by:</span> {coa.signed_by || "—"}</p>
-              <p><span style={labelStyle}>Signed date:</span> {coa.signed_date || "—"}</p>
-              <p><span style={labelStyle}>Signed location:</span> {coa.signed_location || "—"}</p>
-              <p><span style={labelStyle}>Witnessed by:</span> {coa.witnessed_by || "—"}</p>
-            </div>
-
-            {/* Signature line */}
-            <div style={signatureBlockStyle}>
-              <div style={signatureLineStyle} />
-              <div style={signatureLabelStyle}>Authorized Signature</div>
+              <p>
+                <span style={labelStyle}>Title:</span> {coa.comic_title}
+              </p>
+              <p>
+                <span style={labelStyle}>Issue #:</span>{" "}
+                {coa.issue_number || "—"}
+              </p>
+              <p>
+                <span style={labelStyle}>Signed by:</span>{" "}
+                {coa.signed_by || "—"}
+              </p>
+              <p>
+                <span style={labelStyle}>Signed date:</span>{" "}
+                {coa.signed_date || "—"}
+              </p>
+              <p>
+                <span style={labelStyle}>Signed location:</span>{" "}
+                {coa.signed_location || "—"}
+              </p>
+              <p>
+                <span style={labelStyle}>Witnessed by:</span>{" "}
+                {coa.witnessed_by || "—"}
+              </p>
             </div>
 
             {/* Footer with circular logo + verified seal */}
@@ -140,7 +146,7 @@ export default function COAPage() {
                     style={{
                       width: "100%",
                       height: "100%",
-                      objectFit: "cover", // fills the circle, no square look
+                      objectFit: "cover", // fills circle, no square
                     }}
                   />
                 </div>
@@ -155,7 +161,7 @@ export default function COAPage() {
         </div>
       </div>
 
-      {/* Print-friendly styles (for "Print" -> "Save as PDF") */}
+      {/* Print-friendly styles */}
       <style jsx global>{`
         @media print {
           body {
@@ -167,7 +173,7 @@ export default function COAPage() {
   );
 }
 
-/* Styles (no types to keep it simple with // @ts-nocheck) */
+/* Styles */
 
 const pageBackgroundStyle = {
   minHeight: "100vh",
@@ -193,9 +199,7 @@ const certificateStyle = {
   width: "100%",
   padding: "2rem 2.5rem",
   fontFamily: 'Georgia, "Times New Roman", serif',
-  boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-  position: "relative",
-  overflow: "hidden",
+  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
 };
 
 const headingStyle = {
@@ -242,25 +246,6 @@ const labelStyle = {
   display: "inline-block",
 };
 
-const signatureBlockStyle = {
-  marginTop: "2rem",
-  marginBottom: "1.5rem",
-  textAlign: "center" as const,
-};
-
-const signatureLineStyle = {
-  width: "70%",
-  height: "1px",
-  backgroundColor: "#444",
-  margin: "0 auto",
-};
-
-const signatureLabelStyle = {
-  marginTop: "0.35rem",
-  fontSize: "0.85rem",
-  color: "#555",
-};
-
 const footerStyle = {
   marginTop: "1.5rem",
   textAlign: "center" as const,
@@ -304,16 +289,4 @@ const sealTextStyle = {
   fontSize: "0.8rem",
   textTransform: "uppercase" as const,
   letterSpacing: "0.08em",
-};
-
-const watermarkStyle = {
-  position: "absolute" as const,
-  top: "50%",
-  left: "50%",
-  transform: "translate(-50%, -50%)",
-  fontSize: "3rem",
-  color: "#000",
-  opacity: 0.06,
-  whiteSpace: "nowrap" as const,
-  pointerEvents: "none" as const,
 };
