@@ -52,23 +52,23 @@ export default function COAPage() {
 
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
-  // Styles for Option A labels
+  // Larger label/value styles (Option A, upgraded)
   const labelStyle: CSSProperties = {
-    fontSize: "11px",
+    fontSize: "13px",              // was 11px
     letterSpacing: "0.18em",
     textTransform: "uppercase",
     color: "#b08a3c",
-    marginBottom: "2px",
+    marginBottom: "4px",
   };
 
   const valueStyle: CSSProperties = {
-    fontSize: "18px",
+    fontSize: "20px",              // was 18px
     color: "#2c2c2c",
-    marginBottom: "10px",
+    marginBottom: "12px",
   };
 
   const fieldGroupStyle: CSSProperties = {
-    marginBottom: "10px",
+    marginBottom: "12px",
   };
 
   return (
@@ -127,13 +127,15 @@ export default function COAPage() {
               alignItems: "flex-start",
             }}
           >
-            {/* LEFT SIDE DETAILS (Option A styling) */}
+            {/* LEFT SIDE DETAILS */}
             <div style={{ flex: 1 }}>
+              {/* Comic Title */}
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Comic Title</div>
                 <div style={valueStyle}>{coa.comic_title}</div>
               </div>
 
+              {/* Issue # */}
               {coa.issue_number && (
                 <div style={fieldGroupStyle}>
                   <div style={labelStyle}>Issue #</div>
@@ -141,6 +143,7 @@ export default function COAPage() {
                 </div>
               )}
 
+              {/* Signed By */}
               {coa.signed_by && (
                 <div style={fieldGroupStyle}>
                   <div style={labelStyle}>Signed By</div>
@@ -148,6 +151,7 @@ export default function COAPage() {
                 </div>
               )}
 
+              {/* Signed Date */}
               {coa.signed_date && (
                 <div style={fieldGroupStyle}>
                   <div style={labelStyle}>Signed Date</div>
@@ -155,6 +159,7 @@ export default function COAPage() {
                 </div>
               )}
 
+              {/* Signing Location */}
               {coa.signed_location && (
                 <div style={fieldGroupStyle}>
                   <div style={labelStyle}>Signing Location</div>
@@ -162,6 +167,7 @@ export default function COAPage() {
                 </div>
               )}
 
+              {/* Witnessed By */}
               {coa.witnessed_by && (
                 <div style={fieldGroupStyle}>
                   <div style={labelStyle}>Witnessed By</div>
@@ -196,25 +202,36 @@ export default function COAPage() {
             </div>
           </div>
 
-          {/* QR LEFT, SEAL CENTERED */}
+          {/* SEAL ABOVE QR – centered column */}
           <div
             style={{
               marginTop: "40px",
               display: "flex",
               width: "100%",
-              justifyContent: "space-between",
-              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            {/* LEFT: QR + label */}
             <div
               style={{
-                flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "flex-start",
+                alignItems: "center",
+                gap: "12px",
               }}
             >
+              {/* VERIFIED SEAL v4 */}
+              <img
+                src="/verified-seal-v4.png"
+                alt="Verified Seal"
+                style={{
+                  width: "180px",
+                  height: "180px",
+                  objectFit: "contain",
+                  background: "transparent",
+                }}
+              />
+
+              {/* QR CODE */}
               <QRCodeCanvas
                 value={qrUrl}
                 size={140}
@@ -227,7 +244,7 @@ export default function COAPage() {
               />
               <div
                 style={{
-                  marginTop: "6px",
+                  marginTop: "4px",
                   fontSize: "11px",
                   letterSpacing: "0.16em",
                   textTransform: "uppercase",
@@ -237,29 +254,6 @@ export default function COAPage() {
                 Scan to Verify
               </div>
             </div>
-
-            {/* CENTER: bigger VERIFIED SEAL */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                justifyContent: "center",
-              }}
-            >
-              <img
-                src="/verified-seal-v3.png"
-                alt="Verified Seal"
-                style={{
-                  width: "180px",
-                  height: "180px",
-                  objectFit: "contain",
-                  background: "transparent",
-                }}
-              />
-            </div>
-
-            {/* RIGHT: empty flex to balance */}
-            <div style={{ flex: 1 }}></div>
           </div>
         </div>
       </div>
