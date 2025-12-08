@@ -165,9 +165,9 @@ export default function COAPage() {
             }}
           />
 
-          {/* VERIFIED SEAL */}
+          {/* VERIFIED SEAL (with cache-buster) */}
           <img
-            src="/verified-seal.png"
+            src="/verified-seal.png?v=2"
             alt="Verified Seal"
             style={{
               width: "150px",
