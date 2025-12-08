@@ -143,39 +143,46 @@ export default function COAPage() {
           )}
         </div>
 
-        {/* QR + VERIFIED SEAL CENTERED SIDE-BY-SIDE */}
+        {/* --- QR LEFT, SEAL CENTERED --- */}
         <div
           style={{
             marginTop: "40px",
             display: "flex",
-            justifyContent: "center",
+            width: "100%",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "50px",
           }}
         >
-          {/* QR CODE */}
-          <QRCodeCanvas
-            value={qrUrl}
-            size={140}
-            style={{
-              background: "transparent",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #c9b37a",
-            }}
-          />
+          {/* LEFT: QR CODE */}
+          <div style={{ flex: "1", display: "flex", justifyContent: "flex-start" }}>
+            <QRCodeCanvas
+              value={qrUrl}
+              size={140}
+              style={{
+                background: "transparent",
+                padding: "10px",
+                borderRadius: "10px",
+                border: "1px solid #c9b37a",
+              }}
+            />
+          </div>
 
-          {/* VERIFIED SEAL – NEW FILE NAME */}
-          <img
-            src="/verified-seal-v2.png"
-            alt="Verified Seal"
-            style={{
-              width: "150px",
-              height: "150px",
-              objectFit: "contain",
-              background: "transparent",
-            }}
-          />
+          {/* CENTER: VERIFIED SEAL */}
+          <div style={{ flex: "1", display: "flex", justifyContent: "center" }}>
+            <img
+              src="/verified-seal-v2.png"
+              alt="Verified Seal"
+              style={{
+                width: "150px",
+                height: "150px",
+                objectFit: "contain",
+                background: "transparent",
+              }}
+            />
+          </div>
+
+          {/* RIGHT SIDE EMPTY TO BALANCE LAYOUT */}
+          <div style={{ flex: "1" }}></div>
         </div>
       </div>
     </div>
