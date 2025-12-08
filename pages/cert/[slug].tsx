@@ -52,6 +52,25 @@ export default function COAPage() {
 
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
+  // Reusable styles for the Option A labels/values
+  const labelStyle: React.CSSProperties = {
+    fontSize: "11px",
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    color: "#b08a3c",
+    marginBottom: "2px",
+  };
+
+  const valueStyle: React.CSSProperties = {
+    fontSize: "18px",
+    color: "#333",
+    marginBottom: "10px",
+  };
+
+  const fieldGroupStyle: React.CSSProperties = {
+    marginBottom: "10px",
+  };
+
   return (
     <div
       style={{
@@ -96,54 +115,89 @@ export default function COAPage() {
           </p>
         )}
 
-        {/* IMAGE */}
-        {coa.image_url && (
-          <div style={{ textAlign: "center", marginBottom: "20px" }}>
-            <img
-              src={coa.image_url}
-              alt="COA Comic"
-              style={{
-                maxWidth: "320px",
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-              }}
-            />
-          </div>
-        )}
+        {/* MAIN INFO SECTION: Option A details (left) + Image (right) */}
+        <div
+          style={{
+            marginTop: "30px",
+            display: "flex",
+            gap: "40px",
+            alignItems: "flex-start",
+          }}
+        >
+          {/* LEFT: Elegant gold labels + values */}
+          <div style={{ flex: 1 }}>
+            {/* Comic Title */}
+            <div style={fieldGroupStyle}>
+              <div style={labelStyle}>Comic Title</div>
+              <div style={valueStyle}>{coa.comic_title}</div>
+            </div>
 
-        {/* DETAILS */}
-        <div style={{ marginTop: "10px", fontSize: "18px", lineHeight: 1.6 }}>
-          <p>
-            <strong>Comic Title:</strong> {coa.comic_title}
-          </p>
-          {coa.issue_number && (
-            <p>
-              <strong>Issue #:</strong> {coa.issue_number}
-            </p>
-          )}
-          {coa.signed_by && (
-            <p>
-              <strong>Signed By:</strong> {coa.signed_by}
-            </p>
-          )}
-          {coa.signed_date && (
-            <p>
-              <strong>Signed Date:</strong> {coa.signed_date}
-            </p>
-          )}
-          {coa.signed_location && (
-            <p>
-              <strong>Signing Location:</strong> {coa.signed_location}
-            </p>
-          )}
-          {coa.witnessed_by && (
-            <p>
-              <strong>Witnessed By:</strong> {coa.witnessed_by}
-            </p>
-          )}
+            {/* Issue # */}
+            {coa.issue_number && (
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Issue #</div>
+                <div style={valueStyle}>{coa.issue_number}</div>
+              </div>
+            )}
+
+            {/* Signed By */}
+            {coa.signed_by && (
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Signed By</div>
+                <div style={valueStyle}>{coa.signed_by}</div>
+              </div>
+            )}
+
+            {/* Signed Date */}
+            {coa.signed_date && (
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Signed Date</div>
+                <div style={valueStyle}>{coa.signed_date}</div>
+              </div>
+            )}
+
+            {/* Signing Location */}
+            {coa.signed_location && (
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Signing Location</div>
+                <div style={valueStyle}>{coa.signed_location}</div>
+              </div>
+            )}
+
+            {/* Witnessed By */}
+            {coa.witnessed_by && (
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Witnessed By</div>
+                <div style={valueStyle}>{coa.witnessed_by}</div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Comic image */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            {coa.image_url && (
+              <img
+                src={coa.image_url}
+                alt="COA Comic"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "320px",
+                  border: "1px solid #ccc",
+                  borderRadius: "8px",
+                  objectFit: "contain",
+                }}
+              />
+            )}
+          </div>
         </div>
 
-        {/* --- QR LEFT, SEAL CENTERED --- */}
+        {/* QR LEFT, SEAL CENTERED */}
         <div
           style={{
             marginTop: "40px",
@@ -154,7 +208,13 @@ export default function COAPage() {
           }}
         >
           {/* LEFT: QR CODE */}
-          <div style={{ flex: "1", display: "flex", justifyContent: "flex-start" }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "flex-start",
+            }}
+          >
             <QRCodeCanvas
               value={qrUrl}
               size={140}
@@ -168,9 +228,15 @@ export default function COAPage() {
           </div>
 
           {/* CENTER: VERIFIED SEAL */}
-          <div style={{ flex: "1", display: "flex", justifyContent: "center" }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
             <img
-              src="/verified-seal-v2.png"
+              src="/verified-seal-v3.png"
               alt="Verified Seal"
               style={{
                 width: "150px",
@@ -181,8 +247,8 @@ export default function COAPage() {
             />
           </div>
 
-          {/* RIGHT SIDE EMPTY TO BALANCE LAYOUT */}
-          <div style={{ flex: "1" }}></div>
+          {/* RIGHT: empty flex to balance */}
+          <div style={{ flex: 1 }}></div>
         </div>
       </div>
     </div>
