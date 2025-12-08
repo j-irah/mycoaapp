@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import AdminNav from "../../components/AdminNav";
 
-const ADMIN_PASSWORD = "New3ngland"; // <--- CHANGE THIS TO YOUR PASSWORD
+const ADMIN_PASSWORD = "New3ngland";
 
 type COA = {
   id: string;
@@ -151,7 +152,7 @@ export default function AdminCOAsPage() {
     );
   });
 
-  // If not authenticated, show login form
+  // Login screen
   if (!authed) {
     return (
       <div
@@ -212,199 +213,215 @@ export default function AdminCOAsPage() {
 
   // Authenticated view
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "Arial, sans-serif" }}>
-      <h1>Admin – COA Manager</h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        fontFamily: "Arial, sans-serif",
+        backgroundColor: "#f1f1f1",
+      }}
+    >
+      <AdminNav />
 
-      {loading && <p>Loading COAs...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      <div style={{ padding: "1.5rem" }}>
+        <h1>Admin – COA Manager</h1>
 
-      {/* Search */}
-      <div style={{ marginBottom: "1rem", marginTop: "0.5rem" }}>
-        <input
-          type="text"
-          placeholder="Search by title, serial, or signer..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.4rem", width: "100%", maxWidth: "400px" }}
-        />
-      </div>
+        {loading && <p>Loading COAs...</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
-        {/* COA list */}
-        <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
-          <h2>All COAs</h2>
-          <div
-            style={{
-              maxHeight: "400px",
-              overflowY: "auto",
-              border: "1px solid #ddd",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.9rem",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={thStyle}>Title</th>
-                  <th style={thStyle}>Serial (qr_id)</th>
-                  <th style={thStyle}>Signed by</th>
-                  <th style={thStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCoas.map((coa) => (
-                  <tr key={coa.id}>
-                    <td style={tdStyle}>{coa.comic_title}</td>
-                    <td style={tdStyle}>{coa.qr_id}</td>
-                    <td style={tdStyle}>{coa.signed_by}</td>
-                    <td style={tdStyle}>
-                      <button
-                        onClick={() => handleSelectCoa(coa)}
-                        style={{ padding: "0.25rem 0.5rem" }}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredCoas.length === 0 && (
-                  <tr>
-                    <td style={tdStyle} colSpan={4}>
-                      No COAs found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Search */}
+        <div style={{ marginBottom: "1rem", marginTop: "0.5rem" }}>
+          <input
+            type="text"
+            placeholder="Search by title, serial, or signer..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: "0.4rem", width: "100%", maxWidth: "400px" }}
+          />
         </div>
 
-        {/* Edit panel */}
-        <div style={{ flex: "1 1 320px", minWidth: "280px" }}>
-          <h2>Edit COA</h2>
-          {!selectedCoa && <p>Select a COA from the list to edit.</p>}
-
-          {selectedCoa && (
+        <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          {/* COA list */}
+          <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
+            <h2>All COAs</h2>
             <div
               style={{
+                maxHeight: "400px",
+                overflowY: "auto",
                 border: "1px solid #ddd",
-                padding: "1rem",
-                borderRadius: "6px",
+                backgroundColor: "#fff",
               }}
             >
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Title</label>
-                <input
-                  type="text"
-                  value={selectedCoa.comic_title || ""}
-                  onChange={(e) =>
-                    handleFieldChange("comic_title", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Issue #</label>
-                <input
-                  type="text"
-                  value={selectedCoa.issue_number || ""}
-                  onChange={(e) =>
-                    handleFieldChange("issue_number", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Signed by</label>
-                <input
-                  type="text"
-                  value={selectedCoa.signed_by || ""}
-                  onChange={(e) =>
-                    handleFieldChange("signed_by", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Signed date</label>
-                <input
-                  type="text"
-                  value={selectedCoa.signed_date || ""}
-                  onChange={(e) =>
-                    handleFieldChange("signed_date", e.target.value)
-                  }
-                  style={inputStyle}
-                  placeholder="YYYY-MM-DD"
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Signed location</label>
-                <input
-                  type="text"
-                  value={selectedCoa.signed_location || ""}
-                  onChange={(e) =>
-                    handleFieldChange("signed_location", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Witnessed by</label>
-                <input
-                  type="text"
-                  value={selectedCoa.witnessed_by || ""}
-                  onChange={(e) =>
-                    handleFieldChange("witnessed_by", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Image URL</label>
-                <input
-                  type="text"
-                  value={selectedCoa.image_url || ""}
-                  onChange={(e) =>
-                    handleFieldChange("image_url", e.target.value)
-                  }
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldRowStyle}>
-                <label style={labelEditStyle}>Replace image</label>
-                <input type="file" accept="image/*" onChange={handleImageUpload} />
-              </div>
-
-              <div style={{ marginTop: "1rem" }}>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    backgroundColor: "#1976d2",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {saving ? "Saving..." : "Save changes"}
-                </button>
-              </div>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Title</th>
+                    <th style={thStyle}>Serial (qr_id)</th>
+                    <th style={thStyle}>Signed by</th>
+                    <th style={thStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCoas.map((coa) => (
+                    <tr key={coa.id}>
+                      <td style={tdStyle}>{coa.comic_title}</td>
+                      <td style={tdStyle}>{coa.qr_id}</td>
+                      <td style={tdStyle}>{coa.signed_by}</td>
+                      <td style={tdStyle}>
+                        <button
+                          onClick={() => handleSelectCoa(coa)}
+                          style={{ padding: "0.25rem 0.5rem" }}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredCoas.length === 0 && (
+                    <tr>
+                      <td style={tdStyle} colSpan={4}>
+                        No COAs found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
+
+          {/* Edit panel */}
+          <div style={{ flex: "1 1 320px", minWidth: "280px" }}>
+            <h2>Edit COA</h2>
+            {!selectedCoa && <p>Select a COA from the list to edit.</p>}
+
+            {selectedCoa && (
+              <div
+                style={{
+                  border: "1px solid #ddd",
+                  padding: "1rem",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                }}
+              >
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Title</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.comic_title || ""}
+                    onChange={(e) =>
+                      handleFieldChange("comic_title", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Issue #</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.issue_number || ""}
+                    onChange={(e) =>
+                      handleFieldChange("issue_number", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Signed by</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.signed_by || ""}
+                    onChange={(e) =>
+                      handleFieldChange("signed_by", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Signed date</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.signed_date || ""}
+                    onChange={(e) =>
+                      handleFieldChange("signed_date", e.target.value)
+                    }
+                    style={inputStyle}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Signed location</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.signed_location || ""}
+                    onChange={(e) =>
+                      handleFieldChange("signed_location", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Witnessed by</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.witnessed_by || ""}
+                    onChange={(e) =>
+                      handleFieldChange("witnessed_by", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Image URL</label>
+                  <input
+                    type="text"
+                    value={selectedCoa.image_url || ""}
+                    onChange={(e) =>
+                      handleFieldChange("image_url", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={fieldRowStyle}>
+                  <label style={labelEditStyle}>Replace image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                  />
+                </div>
+
+                <div style={{ marginTop: "1rem" }}>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                      padding: "0.4rem 0.8rem",
+                      backgroundColor: "#1976d2",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {saving ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

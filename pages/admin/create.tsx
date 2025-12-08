@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import AdminNav from "../../components/AdminNav";
 
-const ADMIN_PASSWORD = "New3ngland"; // use SAME password as coas.tsx
+const ADMIN_PASSWORD = "New3ngland";
 
 type COA = {
   id: string;
@@ -146,6 +147,7 @@ export default function AdminCreateCOAPage() {
     setCreating(false);
   }
 
+  // Login screen
   if (!authed) {
     return (
       <div
@@ -204,19 +206,21 @@ export default function AdminCreateCOAPage() {
     );
   }
 
+  // Authenticated screen
   return (
     <div
       style={{
         minHeight: "100vh",
-        padding: "1.5rem",
         fontFamily: "Arial, sans-serif",
         backgroundColor: "#f1f1f1",
       }}
     >
+      <AdminNav />
+
       <div
         style={{
           maxWidth: "700px",
-          margin: "0 auto",
+          margin: "1.5rem auto",
           backgroundColor: "#fff",
           padding: "1.5rem",
           borderRadius: "8px",
