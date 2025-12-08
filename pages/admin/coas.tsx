@@ -4,6 +4,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
+const ADMIN_PASSWORD = "New3ngland"; // <--- CHANGE THIS TO YOUR PASSWORD
+
 type COA = {
   id: string;
   comic_title: string;
@@ -17,6 +19,9 @@ type COA = {
 };
 
 export default function AdminCOAsPage() {
+  const [authed, setAuthed] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+
   const [coas, setCoas] = useState<COA[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,9 +30,30 @@ export default function AdminCOAsPage() {
   const [saving, setSaving] = useState<boolean>(false);
   const [search, setSearch] = useState("");
 
+  // Check localStorage for existing admin session
   useEffect(() => {
-    loadCoas();
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("adminAuthed");
+    if (stored === "true") {
+      setAuthed(true);
+      loadCoas();
+    } else {
+      setLoading(false);
+    }
   }, []);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (pwInput === ADMIN_PASSWORD) {
+      setAuthed(true);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("adminAuthed", "true");
+      }
+      loadCoas();
+    } else {
+      alert("Incorrect password");
+    }
+  }
 
   async function loadCoas() {
     setLoading(true);
@@ -67,7 +93,7 @@ export default function AdminCOAsPage() {
 
     if (error) {
       console.error(error);
-      alert("Failed to save changes");
+      alert("Failed to save changes: " + error.message);
     } else {
       alert("COA updated");
       await loadCoas();
@@ -84,7 +110,6 @@ export default function AdminCOAsPage() {
     const fileExt = file.name.split(".").pop();
     const filePath = `coa-${selectedCoa.qr_id}.${fileExt}`;
 
-    // Adjust bucket name if yours is different
     const { error: uploadError } = await supabase.storage
       .from("coa-images")
       .upload(filePath, file, { upsert: true });
@@ -126,6 +151,66 @@ export default function AdminCOAsPage() {
     );
   });
 
+  // If not authenticated, show login form
+  if (!authed) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f1f1f1",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <form
+          onSubmit={handleLogin}
+          style={{
+            backgroundColor: "#fff",
+            padding: "1.5rem",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            minWidth: "280px",
+          }}
+        >
+          <h1 style={{ marginTop: 0, marginBottom: "0.75rem" }}>Admin Login</h1>
+          <p style={{ fontSize: "0.9rem", color: "#555" }}>
+            Enter admin password to manage COAs.
+          </p>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={(e) => setPwInput(e.target.value)}
+            placeholder="Admin password"
+            style={{
+              width: "100%",
+              padding: "0.5rem",
+              marginTop: "0.75rem",
+              marginBottom: "0.75rem",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              width: "100%",
+            }}
+          >
+            Login
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // Authenticated view
   return (
     <div style={{ padding: "1.5rem", fontFamily: "Arial, sans-serif" }}>
       <h1>Admin – COA Manager</h1>
