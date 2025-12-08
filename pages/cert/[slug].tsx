@@ -24,6 +24,13 @@ export default function COAPage() {
   const [coa, setCoa] = useState<COA | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [origin, setOrigin] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -75,6 +82,14 @@ export default function COAPage() {
     }
   };
 
+  // Build the public URL for this certificate and turn it into a QR image URL
+  const qrUrl = origin ? `${origin}/cert/${coa.qr_id}` : "";
+  const qrCodeImageUrl = qrUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
+        qrUrl
+      )}`
+    : "";
+
   return (
     <>
       <div style={pageBackgroundStyle}>
@@ -83,7 +98,11 @@ export default function COAPage() {
             <div style={certificateStyle}>
               {/* Print button (hidden when printing) */}
               <div style={printButtonWrapperStyle} id="print-button-wrapper">
-                <button type="button" style={printButtonStyle} onClick={handlePrint}>
+                <button
+                  type="button"
+                  style={printButtonStyle}
+                  onClick={handlePrint}
+                >
                   Print / Save as PDF
                 </button>
               </div>
@@ -91,7 +110,8 @@ export default function COAPage() {
               {/* Heading */}
               <h1 style={headingStyle}>Certificate of Authenticity</h1>
               <p style={subtitleStyle}>
-                This document certifies the authenticity of the signed comic detailed below.
+                This document certifies the authenticity of the signed comic
+                detailed below.
               </p>
 
               {/* Serial number (using qr_id) */}
@@ -143,6 +163,20 @@ export default function COAPage() {
                   {coa.witnessed_by || "—"}
                 </p>
               </div>
+
+              {/* QR code in bottom-left corner */}
+              {qrCodeImageUrl && (
+                <div style={qrWrapperStyle}>
+                  <div style={qrInnerStyle}>
+                    <img
+                      src={qrCodeImageUrl}
+                      alt="Verification QR code"
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  </div>
+                  <p style={qrCaptionStyle}>Scan to verify</p>
+                </div>
+              )}
 
               {/* Footer with circular logo + verified seal */}
               <div style={footerStyle}>
@@ -227,6 +261,7 @@ const certificateStyle = {
   fontFamily: 'Georgia, "Times New Roman", serif',
   boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
   boxSizing: "border-box" as const,
+  position: "relative" as const, // needed so QR can sit bottom-left of this box
 };
 
 const printButtonWrapperStyle = {
@@ -331,4 +366,32 @@ const sealTextStyle = {
   fontSize: "0.75rem",
   textTransform: "uppercase" as const,
   letterSpacing: "0.08em",
+};
+
+const qrWrapperStyle = {
+  position: "absolute" as const,
+  bottom: "1.5rem",
+  left: "1.5rem",
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "center" as const,
+  gap: "0.25rem",
+};
+
+const qrInnerStyle = {
+  width: 90,
+  height: 90,
+  padding: "0.3rem",
+  borderRadius: "8px",
+  border: "1px solid #d3c19b",
+  backgroundColor: "#ffffff",
+  boxShadow: "0 2px 6px rgba(0, 0, 0, 0.15)",
+  boxSizing: "border-box" as const,
+};
+
+const qrCaptionStyle = {
+  fontSize: "0.6rem",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.12em",
+  color: "#777",
 };
