@@ -67,7 +67,7 @@ export default function COAPage() {
           background: "#fdf9ee",
           border: "12px double #bfa76f",
           padding: "40px",
-          position: "relative", // REQUIRED for QR bottom-left
+          position: "relative",
         }}
       >
         {/* TITLE */}
@@ -144,48 +144,61 @@ export default function COAPage() {
           )}
         </div>
 
-        {/* VERIFIED SEAL + LOGO ROW */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginTop: "30px",
-            gap: "40px",
-          }}
-        >
-          <img
-            src="/logo.png"
-            alt="Company Logo"
-            style={{
-              width: "90px",
-              height: "90px",
-              borderRadius: "50%",
-              objectFit: "cover",
-              border: "4px solid #c9b37a",
-            }}
-          />
+        {/* BOTTOM ROW: QR + LOGO + VERIFIED SEAL */}
+        <div style={bottomRowStyle}>
+          {/* QR on the left */}
+          <div style={qrBoxStyle}>
+            <QRCodeCanvas value={qrUrl} size={110} />
+          </div>
 
-          <img
-            src="/verified-seal.png"
-            alt="Verified Seal"
-            style={{
-              width: "90px",
-              height: "90px",
-            }}
-          />
-        </div>
+          {/* Logo + Verified seal on the right */}
+          <div style={logoSealWrapperStyle}>
+            <img
+              src="/logo.png"
+              alt="Company Logo"
+              style={{
+                width: "90px",
+                height: "90px",
+                borderRadius: "50%",
+                objectFit: "cover",
+                border: "4px solid #c9b37a",
+              }}
+            />
 
-        {/* QR CODE — BOTTOM LEFT */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "40px",
-            left: "40px",
-          }}
-        >
-          <QRCodeCanvas value={qrUrl} size={110} />
+            <img
+              src="/verified-seal.png"
+              alt="Verified Seal"
+              style={{
+                width: "90px",
+                height: "90px",
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+/* Inline style objects for layout/alignment */
+
+const bottomRowStyle: React.CSSProperties = {
+  marginTop: "30px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const qrBoxStyle: React.CSSProperties = {
+  // a little frame around QR to match the certificate style
+  padding: "8px",
+  borderRadius: "8px",
+  border: "1px solid #c9b37a",
+  backgroundColor: "#fff",
+};
+
+const logoSealWrapperStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "40px",
+  alignItems: "center",
+};
