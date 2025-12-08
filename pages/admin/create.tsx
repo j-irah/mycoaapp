@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-const ADMIN_PASSWORD = "ChangeThisAdminPassword!"; // use SAME password as coas.tsx
+const ADMIN_PASSWORD = "New3ngland"; // use SAME password as coas.tsx
 
 type COA = {
   id: string;
