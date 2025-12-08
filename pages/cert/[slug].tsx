@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -53,7 +53,7 @@ export default function COAPage() {
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
   // Styles for Option A labels
-  const labelStyle: React.CSSProperties = {
+  const labelStyle: CSSProperties = {
     fontSize: "11px",
     letterSpacing: "0.18em",
     textTransform: "uppercase",
@@ -61,189 +61,217 @@ export default function COAPage() {
     marginBottom: "2px",
   };
 
-  const valueStyle: React.CSSProperties = {
+  const valueStyle: CSSProperties = {
     fontSize: "18px",
-    color: "#333",
+    color: "#2c2c2c",
     marginBottom: "10px",
   };
 
-  const fieldGroupStyle: React.CSSProperties = {
+  const fieldGroupStyle: CSSProperties = {
     marginBottom: "10px",
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        padding: "2rem",
-        fontFamily: "serif",
-      }}
-    >
+    <>
       <div
         style={{
-          width: "850px",
-          background: "#fdf9ee",
-          border: "12px double #bfa76f",
-          padding: "40px",
+          display: "flex",
+          justifyContent: "center",
+          padding: "2rem",
+          fontFamily: "serif",
         }}
       >
-        {/* TITLE */}
-        <h1
+        <div
           style={{
-            textAlign: "center",
-            fontSize: "34px",
-            marginBottom: "10px",
-            letterSpacing: "2px",
+            width: "100%",
+            maxWidth: "850px",
+            background: "#fdf9ee",
+            border: "12px double #bfa76f",
+            padding: "40px",
           }}
         >
-          Certificate of Authenticity
-        </h1>
-
-        {/* SERIAL NUMBER */}
-        {coa.serial_number && (
-          <p
+          {/* TITLE */}
+          <h1
             style={{
               textAlign: "center",
-              marginTop: "-5px",
-              marginBottom: "20px",
-              fontSize: "14px",
-              color: "#555",
+              fontSize: "34px",
+              marginBottom: "10px",
+              letterSpacing: "2px",
             }}
           >
-            Serial #{coa.serial_number}
-          </p>
-        )}
+            Certificate of Authenticity
+          </h1>
 
-        {/* DETAILS LEFT + IMAGE RIGHT */}
-        <div
-          style={{
-            marginTop: "30px",
-            display: "flex",
-            gap: "40px",
-            alignItems: "flex-start",
-          }}
-        >
-          {/* LEFT SIDE DETAILS */}
-          <div style={{ flex: 1 }}>
-            <div style={fieldGroupStyle}>
-              <div style={labelStyle}>Comic Title</div>
-              <div style={valueStyle}>{coa.comic_title}</div>
+          {/* SERIAL NUMBER */}
+          {coa.serial_number && (
+            <p
+              style={{
+                textAlign: "center",
+                marginTop: "-5px",
+                marginBottom: "20px",
+                fontSize: "14px",
+                color: "#555",
+              }}
+            >
+              Serial #{coa.serial_number}
+            </p>
+          )}
+
+          {/* MAIN INFO SECTION: details left + image right */}
+          <div
+            className="coa-main-row"
+            style={{
+              marginTop: "30px",
+              display: "flex",
+              gap: "40px",
+              alignItems: "flex-start",
+            }}
+          >
+            {/* LEFT SIDE DETAILS (Option A styling) */}
+            <div style={{ flex: 1 }}>
+              <div style={fieldGroupStyle}>
+                <div style={labelStyle}>Comic Title</div>
+                <div style={valueStyle}>{coa.comic_title}</div>
+              </div>
+
+              {coa.issue_number && (
+                <div style={fieldGroupStyle}>
+                  <div style={labelStyle}>Issue #</div>
+                  <div style={valueStyle}>{coa.issue_number}</div>
+                </div>
+              )}
+
+              {coa.signed_by && (
+                <div style={fieldGroupStyle}>
+                  <div style={labelStyle}>Signed By</div>
+                  <div style={valueStyle}>{coa.signed_by}</div>
+                </div>
+              )}
+
+              {coa.signed_date && (
+                <div style={fieldGroupStyle}>
+                  <div style={labelStyle}>Signed Date</div>
+                  <div style={valueStyle}>{coa.signed_date}</div>
+                </div>
+              )}
+
+              {coa.signed_location && (
+                <div style={fieldGroupStyle}>
+                  <div style={labelStyle}>Signing Location</div>
+                  <div style={valueStyle}>{coa.signed_location}</div>
+                </div>
+              )}
+
+              {coa.witnessed_by && (
+                <div style={fieldGroupStyle}>
+                  <div style={labelStyle}>Witnessed By</div>
+                  <div style={valueStyle}>{coa.witnessed_by}</div>
+                </div>
+              )}
             </div>
 
-            {coa.issue_number && (
-              <div style={fieldGroupStyle}>
-                <div style={labelStyle}>Issue #</div>
-                <div style={valueStyle}>{coa.issue_number}</div>
-              </div>
-            )}
-
-            {coa.signed_by && (
-              <div style={fieldGroupStyle}>
-                <div style={labelStyle}>Signed By</div>
-                <div style={valueStyle}>{coa.signed_by}</div>
-              </div>
-            )}
-
-            {coa.signed_date && (
-              <div style={fieldGroupStyle}>
-                <div style={labelStyle}>Signed Date</div>
-                <div style={valueStyle}>{coa.signed_date}</div>
-              </div>
-            )}
-
-            {coa.signed_location && (
-              <div style={fieldGroupStyle}>
-                <div style={labelStyle}>Signing Location</div>
-                <div style={valueStyle}>{coa.signed_location}</div>
-              </div>
-            )}
-
-            {coa.witnessed_by && (
-              <div style={fieldGroupStyle}>
-                <div style={labelStyle}>Witnessed By</div>
-                <div style={valueStyle}>{coa.witnessed_by}</div>
-              </div>
-            )}
+            {/* RIGHT SIDE — larger COMIC IMAGE with gold border + shadow */}
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              {coa.image_url && (
+                <img
+                  src={coa.image_url}
+                  alt="COA Comic"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "420px",
+                    border: "2px solid #c9a86a",
+                    borderRadius: "10px",
+                    boxShadow: "0 6px 16px rgba(0, 0, 0, 0.25)",
+                    objectFit: "contain",
+                    backgroundColor: "#fff",
+                  }}
+                />
+              )}
+            </div>
           </div>
 
-          {/* RIGHT SIDE — COMIC IMAGE */}
+          {/* QR LEFT, SEAL CENTERED */}
           <div
             style={{
-              flex: 1,
+              marginTop: "40px",
               display: "flex",
-              justifyContent: "center",
+              width: "100%",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            {coa.image_url && (
-              <img
-                src={coa.image_url}
-                alt="COA Comic"
+            {/* LEFT: QR + label */}
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+              }}
+            >
+              <QRCodeCanvas
+                value={qrUrl}
+                size={140}
                 style={{
-                  maxWidth: "100%",
-                  maxHeight: "420px", // INCREASED SIZE HERE
-                  border: "1px solid #ccc",
-                  borderRadius: "8px",
-                  objectFit: "contain",
+                  background: "transparent",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  border: "1px solid #c9b37a",
                 }}
               />
-            )}
-          </div>
-        </div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "11px",
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  color: "#666",
+                }}
+              >
+                Scan to Verify
+              </div>
+            </div>
 
-        {/* QR LEFT, SEAL CENTERED */}
-        <div
-          style={{
-            marginTop: "40px",
-            display: "flex",
-            width: "100%",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {/* LEFT QR */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              justifyContent: "flex-start",
-            }}
-          >
-            <QRCodeCanvas
-              value={qrUrl}
-              size={140}
+            {/* CENTER: bigger VERIFIED SEAL */}
+            <div
               style={{
-                background: "transparent",
-                padding: "10px",
-                borderRadius: "10px",
-                border: "1px solid #c9b37a",
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
               }}
-            />
-          </div>
+            >
+              <img
+                src="/verified-seal-v3.png"
+                alt="Verified Seal"
+                style={{
+                  width: "180px",
+                  height: "180px",
+                  objectFit: "contain",
+                  background: "transparent",
+                }}
+              />
+            </div>
 
-          {/* CENTER SEAL — UPDATED TO v3 */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              justifyContent: "center",
-            }}
-          >
-            <img
-              src="/verified-seal-v3.png"
-              alt="Verified Seal"
-              style={{
-                width: "150px",
-                height: "150px",
-                objectFit: "contain",
-                background: "transparent",
-              }}
-            />
+            {/* RIGHT: empty flex to balance */}
+            <div style={{ flex: 1 }}></div>
           </div>
-
-          <div style={{ flex: 1 }}></div>
         </div>
       </div>
-    </div>
+
+      {/* Basic responsiveness: stack details + image on small screens */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .coa-main-row {
+            flex-direction: column;
+          }
+        }
+      `}</style>
+    </>
   );
 }
