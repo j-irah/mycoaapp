@@ -143,15 +143,14 @@ export default function COAPage() {
           )}
         </div>
 
-        {/* CENTERED QR + VERIFIED SEAL */}
+        {/* QR + VERIFIED SEAL CENTERED SIDE-BY-SIDE */}
         <div
           style={{
             marginTop: "40px",
             display: "flex",
-            flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
-            gap: "20px",
+            gap: "50px",
           }}
         >
           {/* QR CODE */}
