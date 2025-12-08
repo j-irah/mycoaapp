@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
-import QRCode from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 
 type COA = {
   id: string;
@@ -18,6 +18,7 @@ type COA = {
 
 export default function COAPage() {
   const router = useRouter();
+
   const slug = Array.isArray(router.query.slug)
     ? router.query.slug[0]
     : router.query.slug;
@@ -66,7 +67,7 @@ export default function COAPage() {
           background: "#fdf9ee",
           border: "12px double #bfa76f",
           padding: "40px",
-          position: "relative",
+          position: "relative", // REQUIRED for QR bottom-left
         }}
       >
         {/* TITLE */}
@@ -98,12 +99,7 @@ export default function COAPage() {
 
         {/* IMAGE */}
         {coa.image_url && (
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "20px",
-            }}
-          >
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
             <img
               src={coa.image_url}
               alt="COA Comic"
@@ -117,7 +113,7 @@ export default function COAPage() {
         )}
 
         {/* DETAILS */}
-        <div style={{ marginTop: "10px", fontSize: "18px", lineHeight: "1.6" }}>
+        <div style={{ marginTop: "10px", fontSize: "18px", lineHeight: 1.6 }}>
           <p>
             <strong>Comic Title:</strong> {coa.comic_title}
           </p>
@@ -157,7 +153,6 @@ export default function COAPage() {
             gap: "40px",
           }}
         >
-          {/* YOUR LOGO */}
           <img
             src="/logo.png"
             alt="Company Logo"
@@ -170,7 +165,6 @@ export default function COAPage() {
             }}
           />
 
-          {/* VERIFIED SEAL */}
           <img
             src="/verified-seal.png"
             alt="Verified Seal"
@@ -189,7 +183,7 @@ export default function COAPage() {
             left: "40px",
           }}
         >
-          <QRCode value={qrUrl} size={110} />
+          <QRCodeCanvas value={qrUrl} size={110} />
         </div>
       </div>
     </div>
