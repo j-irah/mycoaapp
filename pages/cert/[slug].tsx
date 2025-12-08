@@ -52,9 +52,9 @@ export default function COAPage() {
 
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
-  // Larger label/value styles (Option A, upgraded)
+  // Larger label/value styles
   const labelStyle: CSSProperties = {
-    fontSize: "13px",              // was 11px
+    fontSize: "13px",
     letterSpacing: "0.18em",
     textTransform: "uppercase",
     color: "#b08a3c",
@@ -62,7 +62,7 @@ export default function COAPage() {
   };
 
   const valueStyle: CSSProperties = {
-    fontSize: "20px",              // was 18px
+    fontSize: "20px",
     color: "#2c2c2c",
     marginBottom: "12px",
   };
@@ -117,7 +117,8 @@ export default function COAPage() {
             </p>
           )}
 
-          {/* MAIN INFO SECTION: details left + image right */}
+          {/* MAIN INFO SECTION:
+              LEFT = details, RIGHT = seal + QR (where image used to be) */}
           <div
             className="coa-main-row"
             style={{
@@ -176,43 +177,10 @@ export default function COAPage() {
               )}
             </div>
 
-            {/* RIGHT SIDE — larger COMIC IMAGE with gold border + shadow */}
+            {/* RIGHT SIDE — VERIFIED SEAL + QR (moved where image was) */}
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                justifyContent: "center",
-              }}
-            >
-              {coa.image_url && (
-                <img
-                  src={coa.image_url}
-                  alt="COA Comic"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "420px",
-                    border: "2px solid #c9a86a",
-                    borderRadius: "10px",
-                    boxShadow: "0 6px 16px rgba(0, 0, 0, 0.25)",
-                    objectFit: "contain",
-                    backgroundColor: "#fff",
-                  }}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* SEAL ABOVE QR – centered column */}
-          <div
-            style={{
-              marginTop: "40px",
-              display: "flex",
-              width: "100%",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -255,10 +223,35 @@ export default function COAPage() {
               </div>
             </div>
           </div>
+
+          {/* BOTTOM-LEFT COMIC IMAGE */}
+          {coa.image_url && (
+            <div
+              style={{
+                marginTop: "30px",
+                display: "flex",
+                justifyContent: "flex-start",
+              }}
+            >
+              <img
+                src={coa.image_url}
+                alt="COA Comic"
+                style={{
+                  maxWidth: "260px",
+                  maxHeight: "260px",
+                  border: "2px solid #c9a86a",
+                  borderRadius: "10px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.25)",
+                  objectFit: "contain",
+                  backgroundColor: "#fff",
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Basic responsiveness: stack details + image on small screens */}
+      {/* Basic responsiveness: stack details + seal/QR on small screens */}
       <style jsx global>{`
         @media (max-width: 768px) {
           .coa-main-row {
