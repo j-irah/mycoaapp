@@ -52,7 +52,7 @@ export default function COAPage() {
 
   const qrUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${coa.qr_id}`;
 
-  // Reusable styles for the Option A labels/values
+  // Styles for Option A labels
   const labelStyle: React.CSSProperties = {
     fontSize: "11px",
     letterSpacing: "0.18em",
@@ -115,7 +115,7 @@ export default function COAPage() {
           </p>
         )}
 
-        {/* MAIN INFO SECTION: Option A details (left) + Image (right) */}
+        {/* DETAILS LEFT + IMAGE RIGHT */}
         <div
           style={{
             marginTop: "30px",
@@ -124,15 +124,13 @@ export default function COAPage() {
             alignItems: "flex-start",
           }}
         >
-          {/* LEFT: Elegant gold labels + values */}
+          {/* LEFT SIDE DETAILS */}
           <div style={{ flex: 1 }}>
-            {/* Comic Title */}
             <div style={fieldGroupStyle}>
               <div style={labelStyle}>Comic Title</div>
               <div style={valueStyle}>{coa.comic_title}</div>
             </div>
 
-            {/* Issue # */}
             {coa.issue_number && (
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Issue #</div>
@@ -140,7 +138,6 @@ export default function COAPage() {
               </div>
             )}
 
-            {/* Signed By */}
             {coa.signed_by && (
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Signed By</div>
@@ -148,7 +145,6 @@ export default function COAPage() {
               </div>
             )}
 
-            {/* Signed Date */}
             {coa.signed_date && (
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Signed Date</div>
@@ -156,7 +152,6 @@ export default function COAPage() {
               </div>
             )}
 
-            {/* Signing Location */}
             {coa.signed_location && (
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Signing Location</div>
@@ -164,7 +159,6 @@ export default function COAPage() {
               </div>
             )}
 
-            {/* Witnessed By */}
             {coa.witnessed_by && (
               <div style={fieldGroupStyle}>
                 <div style={labelStyle}>Witnessed By</div>
@@ -173,7 +167,7 @@ export default function COAPage() {
             )}
           </div>
 
-          {/* RIGHT: Comic image */}
+          {/* RIGHT SIDE — COMIC IMAGE */}
           <div
             style={{
               flex: 1,
@@ -187,7 +181,7 @@ export default function COAPage() {
                 alt="COA Comic"
                 style={{
                   maxWidth: "100%",
-                  maxHeight: "320px",
+                  maxHeight: "420px", // INCREASED SIZE HERE
                   border: "1px solid #ccc",
                   borderRadius: "8px",
                   objectFit: "contain",
@@ -207,7 +201,7 @@ export default function COAPage() {
             alignItems: "center",
           }}
         >
-          {/* LEFT: QR CODE */}
+          {/* LEFT QR */}
           <div
             style={{
               flex: 1,
@@ -227,7 +221,7 @@ export default function COAPage() {
             />
           </div>
 
-          {/* CENTER: VERIFIED SEAL */}
+          {/* CENTER SEAL — UPDATED TO v3 */}
           <div
             style={{
               flex: 1,
@@ -247,7 +241,6 @@ export default function COAPage() {
             />
           </div>
 
-          {/* RIGHT: empty flex to balance */}
           <div style={{ flex: 1 }}></div>
         </div>
       </div>
