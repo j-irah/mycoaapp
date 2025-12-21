@@ -1,13 +1,21 @@
 // pages/admin/create.tsx
 // @ts-nocheck
+//
+// Create a COA (Admin). This file avoids hardcoded localhost URLs.
+// It uses NEXT_PUBLIC_SITE_URL (if set) or window.location.origin for display-only absolute links.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 
 type COA = {
   id: string;
   qr_id: string;
 };
+
+function getEnvBaseUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  return env ? env.replace(/\/$/, "") : "";
+}
 
 export default function AdminCreateCOAPage() {
   const [comicTitle, setComicTitle] = useState("");
@@ -20,6 +28,21 @@ export default function AdminCreateCOAPage() {
   const [createdCoa, setCreatedCoa] = useState<COA | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [baseUrl, setBaseUrl] = useState<string>("");
+
+  useEffect(() => {
+    const env = getEnvBaseUrl();
+    if (env) setBaseUrl(env);
+    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+  }, []);
+
+  const certPath = useMemo(() => (createdCoa?.qr_id ? `/cert/${createdCoa.qr_id}` : ""), [createdCoa]);
+  const certUrlDisplay = useMemo(() => {
+    if (!createdCoa?.qr_id) return "";
+    if (!baseUrl) return certPath || "";
+    return `${baseUrl}${certPath}`;
+  }, [baseUrl, certPath, createdCoa]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,13 +136,8 @@ export default function AdminCreateCOAPage() {
               </div>
               <div style={row}>
                 <span style={k}>Cert URL:</span>{" "}
-                <a
-                  href={`http://localhost:3000/cert/${createdCoa.qr_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={linkStyle}
-                >
-                  {`http://localhost:3000/cert/${createdCoa.qr_id}`}
+                <a href={certPath} target="_blank" rel="noreferrer" style={linkStyle}>
+                  {certUrlDisplay || certPath}
                 </a>
               </div>
             </div>

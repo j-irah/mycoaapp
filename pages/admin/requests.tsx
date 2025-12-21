@@ -339,7 +339,7 @@ export default function AdminRequestsPage() {
 
                       {r.issued_coa_id && (
                         <div style={{ marginTop: "0.35rem" }}>
-                          <Link href={`http://localhost:3000/cert/${generateSlug(r.issued_coa_id)}`} style={linkStyle}>
+                          <Link href={`/cert/${generateSlug(r.issued_coa_id)}`} style={linkStyle}>
                             View COA
                           </Link>
                         </div>

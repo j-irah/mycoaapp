@@ -1,12 +1,20 @@
 // pages/admin/create-coa.tsx
 // @ts-nocheck
+//
+// Legacy COA create page (admin). Avoids hardcoded localhost URLs.
+// Uses NEXT_PUBLIC_SITE_URL (if set) or window.location.origin to display absolute cert URL + QR.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { supabase } from "../../lib/supabaseClient";
 import { QRCodeCanvas } from "qrcode.react";
 
 const BUCKET_NAME = "coa-images"; // change if your bucket name is different
+
+function getEnvBaseUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  return env ? env.replace(/\/$/, "") : "";
+}
 
 export default function CreateCOAPage() {
   const [comicTitle, setComicTitle] = useState("");
@@ -22,6 +30,21 @@ export default function CreateCOAPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [created, setCreated] = useState<any>(null);
+
+  const [baseUrl, setBaseUrl] = useState<string>("");
+
+  useEffect(() => {
+    const env = getEnvBaseUrl();
+    if (env) setBaseUrl(env);
+    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+  }, []);
+
+  const certPath = useMemo(() => (created?.qr_id ? `/cert/${created.qr_id}` : ""), [created]);
+  const certUrl = useMemo(() => {
+    if (!created?.qr_id) return null;
+    if (!baseUrl) return certPath || null;
+    return `${baseUrl}${certPath}`;
+  }, [baseUrl, certPath, created]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,15 +107,12 @@ export default function CreateCOAPage() {
     setLoading(false);
   }
 
-  const certUrl = created?.qr_id ? `http://localhost:3000/cert/${created.qr_id}` : null;
-
   return (
     <AdminLayout requireStaff={true}>
       <h1 style={{ marginTop: 0 }}>Create COA (Legacy Page)</h1>
 
       <div style={{ color: "#666", fontWeight: 800, marginBottom: "1rem" }}>
-        Note: Your primary create page is <code>http://localhost:3000/admin/create</code>. This page is kept for
-        compatibility.
+        Note: Your primary create page is <code>/admin/create</code>. This page is kept for compatibility.
       </div>
 
       {message && <div style={okBox}>{message}</div>}
@@ -145,7 +165,7 @@ export default function CreateCOAPage() {
               {certUrl && (
                 <div style={row}>
                   <span style={k}>Cert URL:</span>{" "}
-                  <a href={certUrl} target="_blank" rel="noreferrer" style={linkStyle}>
+                  <a href={certPath} target="_blank" rel="noreferrer" style={linkStyle}>
                     {certUrl}
                   </a>
                 </div>

@@ -1,78 +1,118 @@
 // pages/admin/index.tsx
-// @ts-nocheck
+// Admin home (requires staff role). No localhost anywhere.
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import AdminLayout from "../../components/AdminLayout";
+import RequireAuth from "../../components/RequireAuth";
+import AdminNav from "../../components/AdminNav";
+import { supabase } from "../../lib/supabaseClient";
 
-export default function AdminDashboardPage() {
+type Role = "owner" | "admin" | "reviewer" | "artist" | null;
+
+function isStaff(role: Role) {
+  return role === "owner" || role === "admin" || role === "reviewer";
+}
+
+export default function AdminHomePage() {
+  const [role, setRole] = useState<Role>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!alive) return;
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      if (!alive) return;
+
+      setRole((data?.role ?? null) as Role);
+      setLoading(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
-    <AdminLayout requireStaff={true}>
-      <h1 style={{ marginTop: 0 }}>Admin Dashboard</h1>
+    <RequireAuth>
+      <div style={pageStyle}>
+        <AdminNav />
+        <div style={containerStyle}>
+          <h1 style={{ margin: 0, fontWeight: 900 }}>Admin</h1>
 
-      <div style={grid}>
-        <div style={card}>
-          <div style={cardTitle}>Events</div>
-          <div style={cardDesc}>Create and manage active/inactive events.</div>
-          <Link href="http://localhost:3000/admin/events" style={btnLink}>
-            Go to Events →
-          </Link>
-        </div>
-
-        <div style={card}>
-          <div style={cardTitle}>Requests</div>
-          <div style={cardDesc}>Review incoming COA requests and proofs.</div>
-          <Link href="http://localhost:3000/admin/requests" style={btnLink}>
-            Go to Requests →
-          </Link>
-        </div>
-
-        <div style={card}>
-          <div style={cardTitle}>Create</div>
-          <div style={cardDesc}>Manually create a COA.</div>
-          <Link href="http://localhost:3000/admin/create" style={btnLink}>
-            Go to Create →
-          </Link>
+          {loading ? (
+            <div style={cardStyle}>Loading…</div>
+          ) : !isStaff(role) ? (
+            <div style={cardStyle}>
+              <div style={{ fontWeight: 900, marginBottom: 8 }}>Access denied</div>
+              <div style={{ color: "#666" }}>You must be staff to view this page.</div>
+              <div style={{ marginTop: 12 }}>
+                <Link href="/dashboard" style={linkStyle}>
+                  Go to dashboard
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div style={gridStyle}>
+              <Link href="/admin/events" style={tileStyle}>
+                Events
+              </Link>
+              <Link href="/admin/requests" style={tileStyle}>
+                Requests
+              </Link>
+              <Link href="/admin/create" style={tileStyle}>
+                Create COA
+              </Link>
+              <Link href="/admin/artists" style={tileStyle}>
+                Artists
+              </Link>
+            </div>
+          )}
         </div>
       </div>
-
-      <div style={{ marginTop: "1rem", color: "#666", fontWeight: 800 }}>
-        Login entrypoint:
-        <div style={{ marginTop: "0.35rem" }}>
-          <code>http://localhost:3000/login?returnTo=/admin</code>
-        </div>
-      </div>
-    </AdminLayout>
+    </RequireAuth>
   );
 }
 
-const grid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-  gap: "1rem",
-};
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f1f1", fontFamily: "Arial, sans-serif" };
 
-const card: React.CSSProperties = {
+const containerStyle: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "1.5rem" };
+
+const cardStyle: React.CSSProperties = {
   background: "#fff",
+  marginTop: "1rem",
   padding: "1.25rem",
   borderRadius: 14,
   boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
 };
 
-const cardTitle: React.CSSProperties = {
+const gridStyle: React.CSSProperties = {
+  marginTop: "1rem",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "1rem",
+};
+
+const tileStyle: React.CSSProperties = {
+  display: "block",
+  background: "#fff",
+  padding: "1.25rem",
+  borderRadius: 14,
+  boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
   fontWeight: 900,
-  fontSize: "1.1rem",
-  marginBottom: "0.35rem",
-};
-
-const cardDesc: React.CSSProperties = {
-  color: "#666",
-  fontWeight: 700,
-  marginBottom: "0.85rem",
-};
-
-const btnLink: React.CSSProperties = {
-  display: "inline-block",
   textDecoration: "none",
-  fontWeight: 900,
-  color: "#1976d2",
+  color: "#111",
 };
+
+const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#1976d2", textDecoration: "none" };

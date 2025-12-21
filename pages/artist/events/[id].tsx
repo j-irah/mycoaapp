@@ -1,10 +1,17 @@
 // pages/artist/events/[id].tsx
 // @ts-nocheck
+//
+// Artist event detail (owned by artist). No hardcoded localhost URLs.
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import ArtistLayout from "../../../components/ArtistLayout";
 import { supabase } from "../../../lib/supabaseClient";
+
+function getEnvBaseUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  return env ? env.replace(/\/$/, "") : "";
+}
 
 export default function ArtistEventDetail() {
   const router = useRouter();
@@ -15,7 +22,20 @@ export default function ArtistEventDetail() {
   const [rows, setRows] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const eventUrl = useMemo(() => (eventRow?.slug ? `http://localhost:3000/e/${eventRow.slug}` : ""), [eventRow]);
+  const [baseUrl, setBaseUrl] = useState<string>("");
+
+  useEffect(() => {
+    const env = getEnvBaseUrl();
+    if (env) setBaseUrl(env);
+    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+  }, []);
+
+  const eventPath = useMemo(() => (eventRow?.slug ? `/e/${eventRow.slug}` : ""), [eventRow]);
+  const eventUrlDisplay = useMemo(() => {
+    if (!eventPath) return "";
+    if (!baseUrl) return eventPath;
+    return `${baseUrl}${eventPath}`;
+  }, [baseUrl, eventPath]);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +55,7 @@ export default function ArtistEventDetail() {
       if (!active) return;
 
       if (!user) {
-        router.replace(`http://localhost:3000/login?next=${encodeURIComponent(`/artist/events/${id}`)}`);
+        router.replace(`/login?next=${encodeURIComponent(`/artist/events/${id}`)}`);
         return;
       }
 
@@ -101,8 +121,8 @@ export default function ArtistEventDetail() {
             </div>
             <div style={{ marginTop: 10 }}>
               Public page:{" "}
-              <a href={eventUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 900 }}>
-                {eventUrl}
+              <a href={eventPath} target="_blank" rel="noreferrer" style={{ fontWeight: 900 }}>
+                {eventUrlDisplay}
               </a>
             </div>
           </div>
@@ -122,7 +142,7 @@ export default function ArtistEventDetail() {
                     <th style={th}>Status</th>
                     <th style={th}>Comic</th>
                     <th style={th}>Issue</th>
-                    <th style={th}>Collector Name</th>
+                    <th style={th}>Witness Name</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -140,9 +160,7 @@ export default function ArtistEventDetail() {
             )}
           </div>
 
-          <div style={{ marginTop: 10, color: "#64748b", fontSize: 13 }}>
-            Proof images are intentionally excluded from the artist view.
-          </div>
+          <div style={{ marginTop: 10, color: "#64748b", fontSize: 13 }}>Proof images are intentionally excluded from the artist view.</div>
         </>
       )}
     </ArtistLayout>

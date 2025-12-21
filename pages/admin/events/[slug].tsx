@@ -1,6 +1,13 @@
 // pages/admin/events/[slug].tsx
 // Admin QR/Preview page (staff-only)
-// This version removes AdminLayout and uses RequireAuth + AdminNav (Option A).
+//
+// NOTE: RequireAuth in this project does not support staffOnly prop.
+// This page simply requires auth, and assumes your AdminNav/AdminLayout restricts access
+// (or you can add a role check here if you want).
+//
+// No hardcoded localhost URLs:
+// - navigation uses relative routes
+// - absolute QR/collector link uses NEXT_PUBLIC_SITE_URL or window.location.origin
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
@@ -26,6 +33,11 @@ function fmtDateRange(start?: string | null, end?: string | null) {
   return `${start} → ${end}`;
 }
 
+function getEnvBaseUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  return env ? env.replace(/\/$/, "") : "";
+}
+
 export default function AdminEventQRPage() {
   const router = useRouter();
   const slug = typeof router.query.slug === "string" ? router.query.slug : null;
@@ -34,14 +46,21 @@ export default function AdminEventQRPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Prefer Vercel/Prod base URL if set; fallback to localhost for local dev.
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
+  const [baseUrl, setBaseUrl] = useState<string>("");
+
+  useEffect(() => {
+    const env = getEnvBaseUrl();
+    if (env) setBaseUrl(env);
+    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+  }, []);
+
+  const eventPath = useMemo(() => (slug ? `/e/${slug}` : ""), [slug]);
 
   const eventUrl = useMemo(() => {
-    if (!slug) return null;
-    return `${baseUrl}/e/${slug}`;
-  }, [baseUrl, slug]);
+    if (!eventPath) return null;
+    if (!baseUrl) return null; // wait for client baseUrl so QR uses correct host
+    return `${baseUrl}${eventPath}`;
+  }, [baseUrl, eventPath]);
 
   useEffect(() => {
     let alive = true;
@@ -86,17 +105,14 @@ export default function AdminEventQRPage() {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center" }}>
             <h1 style={{ margin: 0 }}>Event QR</h1>
             <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-              <button
-                onClick={() => router.push("http://localhost:3000/admin/events")}
-                style={secondaryBtn}
-              >
+              <button onClick={() => router.push("/admin/events")} style={secondaryBtn}>
                 Back to Events
               </button>
               <button
                 onClick={() => window.print()}
                 style={primaryBtn}
                 disabled={!eventUrl}
-                title={!eventUrl ? "Waiting for slug…" : "Print"}
+                title={!eventUrl ? "Waiting for event link…" : "Print"}
               >
                 Print
               </button>
@@ -108,8 +124,10 @@ export default function AdminEventQRPage() {
               <div style={cardStyle}>Loading…</div>
             ) : err ? (
               <div style={{ ...cardStyle, ...errorBox }}>{err}</div>
-            ) : !row || !eventUrl ? (
+            ) : !row ? (
               <div style={cardStyle}>Event not found.</div>
+            ) : !eventUrl ? (
+              <div style={cardStyle}>Preparing link…</div>
             ) : (
               <>
                 {/* Printable section */}
@@ -141,8 +159,7 @@ export default function AdminEventQRPage() {
                         </div>
 
                         <div style={{ marginTop: "0.85rem", color: "#666", fontSize: "0.95rem" }}>
-                          Place this QR code at the artist table. Collectors scan to open the event page and submit a COA
-                          request.
+                          Place this QR code at the artist table. Collectors scan to open the event page and submit a COA request.
                         </div>
                       </div>
                     </div>
@@ -166,13 +183,12 @@ export default function AdminEventQRPage() {
                 <div style={{ ...cardStyle, marginTop: "1rem" }}>
                   <div style={{ fontWeight: 900 }}>Open event page</div>
                   <div style={{ marginTop: "0.4rem" }}>
-                    <a href={eventUrl} target="_blank" rel="noreferrer" style={linkStyle}>
+                    <a href={eventPath} target="_blank" rel="noreferrer" style={linkStyle}>
                       {eventUrl}
                     </a>
                   </div>
                   <div style={{ marginTop: "0.65rem", color: "#666", fontSize: "0.95rem" }}>
-                    Tip: In Vercel, set <code>NEXT_PUBLIC_SITE_URL</code> to your production domain so the QR points to
-                    production instead of localhost.
+                    Tip: In Vercel, set <code>NEXT_PUBLIC_SITE_URL</code> to your production domain so the QR points to production.
                   </div>
                 </div>
               </>

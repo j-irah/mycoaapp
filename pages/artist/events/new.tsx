@@ -1,7 +1,10 @@
 // pages/artist/events/new.tsx
 // @ts-nocheck
+//
+// Artist creates an event. No hardcoded localhost URLs.
+// Uses NEXT_PUBLIC_SITE_URL (if set) or window.location.origin to display absolute links.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import RequireAuth from "../../../components/RequireAuth";
 import { supabase } from "../../../lib/supabaseClient";
@@ -23,6 +26,11 @@ function todayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function getEnvBaseUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  return env ? env.replace(/\/$/, "") : "";
+}
+
 export default function ArtistCreateEventPage() {
   const router = useRouter();
 
@@ -36,27 +44,44 @@ export default function ArtistCreateEventPage() {
   const [startDate, setStartDate] = useState(todayISO());
   const [endDate, setEndDate] = useState(todayISO());
 
+  const [baseUrl, setBaseUrl] = useState<string>("");
+
   useEffect(() => {
+    const env = getEnvBaseUrl();
+    if (env) setBaseUrl(env);
+    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
     (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!alive) return;
 
-      const pr = await supabase
-        .from("profiles")
-        .select("role, full_name, email")
-        .eq("id", user.id)
-        .single();
+      if (!user) {
+        router.replace(`/login?next=${encodeURIComponent("/artist/events/new")}`);
+        return;
+      }
+
+      const pr = await supabase.from("profiles").select("role, full_name, email").eq("id", user.id).single();
+
+      if (!alive) return;
 
       if (pr.error || pr.data?.role !== "artist") {
-        router.replace("http://localhost:3000/login");
+        router.replace("/login");
         return;
       }
 
       setRoleOk(true);
     })();
+
+    return () => {
+      alive = false;
+    };
   }, [router]);
 
   async function createEvent(e: React.FormEvent) {
@@ -81,16 +106,9 @@ export default function ArtistCreateEventPage() {
       return;
     }
 
-    const profile = await supabase
-      .from("profiles")
-      .select("full_name, email")
-      .eq("id", user.id)
-      .single();
+    const profile = await supabase.from("profiles").select("full_name, email").eq("id", user.id).single();
 
-    const artistName =
-      profile.data?.full_name?.trim() ||
-      profile.data?.email?.trim() ||
-      "Unnamed Artist";
+    const artistName = profile.data?.full_name?.trim() || profile.data?.email?.trim() || "Unnamed Artist";
 
     const base = slugify(`${artistName}-${eventName}-${startDate}`);
     const slug = `${base}-${Math.random().toString(16).slice(2, 6)}`;
@@ -116,13 +134,20 @@ export default function ArtistCreateEventPage() {
     setLoading(false);
   }
 
-  const eventUrl = createdSlug
-    ? `http://localhost:3000/e/${createdSlug}`
-    : "";
+  const eventPath = useMemo(() => (createdSlug ? `/e/${createdSlug}` : ""), [createdSlug]);
+  const qrPath = useMemo(() => (createdSlug ? `/artist/events/qr/${createdSlug}` : ""), [createdSlug]);
 
-  const qrUrl = createdSlug
-    ? `http://localhost:3000/artist/events/qr/${createdSlug}`
-    : "";
+  const eventUrlDisplay = useMemo(() => {
+    if (!eventPath) return "";
+    if (!baseUrl) return eventPath;
+    return `${baseUrl}${eventPath}`;
+  }, [baseUrl, eventPath]);
+
+  const qrUrlDisplay = useMemo(() => {
+    if (!qrPath) return "";
+    if (!baseUrl) return qrPath;
+    return `${baseUrl}${qrPath}`;
+  }, [baseUrl, qrPath]);
 
   return (
     <RequireAuth requireStaff={false}>
@@ -130,57 +155,32 @@ export default function ArtistCreateEventPage() {
         <div style={card}>
           <div style={headerRow}>
             <h1 style={{ margin: 0 }}>Create Event</h1>
-            <button
-              onClick={() =>
-                router.push("http://localhost:3000/artist/dashboard")
-              }
-              style={secondaryBtn}
-            >
+            <button onClick={() => router.push("/artist/dashboard")} style={secondaryBtn}>
               Back to Dashboard
             </button>
           </div>
 
           {!roleOk ? (
-            <div style={{ marginTop: 12, color: "#64748b" }}>
-              Checking access…
-            </div>
+            <div style={{ marginTop: 12, color: "#64748b" }}>Checking access…</div>
           ) : (
             <>
               {error && <div style={errorBox}>{error}</div>}
 
               <form onSubmit={createEvent} style={{ marginTop: 12 }}>
                 <label style={label}>Event Name *</label>
-                <input
-                  style={input}
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                />
+                <input style={input} value={eventName} onChange={(e) => setEventName(e.target.value)} />
 
                 <label style={label}>Location</label>
-                <input
-                  style={input}
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
+                <input style={input} value={location} onChange={(e) => setLocation(e.target.value)} />
 
                 <div style={grid2}>
                   <div>
                     <label style={label}>Start Date *</label>
-                    <input
-                      type="date"
-                      style={input}
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                    />
+                    <input type="date" style={input} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                   </div>
                   <div>
                     <label style={label}>End Date *</label>
-                    <input
-                      type="date"
-                      style={input}
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                    />
+                    <input type="date" style={input} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                 </div>
 
@@ -192,25 +192,20 @@ export default function ArtistCreateEventPage() {
               {createdSlug && (
                 <div style={successBox}>
                   <div style={{ fontWeight: 900 }}>Event created</div>
+
                   <div style={{ marginTop: 8 }}>
-                    <a
-                      href={eventUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={linkStyle}
-                    >
-                      {eventUrl}
+                    <a href={eventPath} target="_blank" rel="noreferrer" style={linkStyle}>
+                      {eventUrlDisplay}
                     </a>
                   </div>
+
                   <div style={{ marginTop: 8 }}>
-                    <a
-                      href={qrUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={linkStyle}
-                    >
+                    <a href={qrPath} target="_blank" rel="noreferrer" style={linkStyle}>
                       Print QR Code
                     </a>
+                    <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
+                      {qrUrlDisplay}
+                    </div>
                   </div>
                 </div>
               )}

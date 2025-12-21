@@ -1,5 +1,9 @@
 // pages/login.tsx
-// NOTE: All routing is relative so it works on production domains (no localhost hardcoding).
+// Role-based login redirect.
+// Staff: /admin
+// Artist: /artist/dashboard
+// Collector (role null): /dashboard
+// No hardcoded localhost.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,7 +14,6 @@ type StaffRole = "owner" | "admin" | "reviewer";
 type Role = StaffRole | "artist" | null;
 
 const STAFF_ROLES: StaffRole[] = ["owner", "admin", "reviewer"];
-const COLLECTOR_HOME = "/dashboard";
 
 function safeNext(input: unknown) {
   const s = typeof input === "string" ? input : "";
@@ -21,13 +24,17 @@ function safeNext(input: unknown) {
 }
 
 async function fetchRole(userId: string): Promise<Role> {
-  const { data } = await supabase.from("profiles").select("role").eq("id", userId).single();
-  return (data?.role ?? null) as Role;
+  // If RLS blocks this, data may be null; we treat as collector.
+  const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).single();
+  if (error) return null;
+  const role = (data?.role ?? null) as Role;
+  return role;
 }
 
 async function routeByRole(router: ReturnType<typeof useRouter>, nextUrl: string) {
   const safe = safeNext(nextUrl);
 
+  // If a safe next is provided, honor it (e.g. /e/slug), regardless of role.
   if (safe) {
     router.replace(safe);
     return;
@@ -54,7 +61,7 @@ async function routeByRole(router: ReturnType<typeof useRouter>, nextUrl: string
     return;
   }
 
-  router.replace(COLLECTOR_HOME);
+  router.replace("/dashboard");
 }
 
 export default function LoginPage() {
@@ -70,6 +77,7 @@ export default function LoginPage() {
   const signupHref = next ? `/signup?next=${encodeURIComponent(next)}` : "/signup";
   const forgotHref = next ? `/forgot-password?next=${encodeURIComponent(next)}` : "/forgot-password";
 
+  // If already logged in, route immediately by role.
   useEffect(() => {
     let alive = true;
 

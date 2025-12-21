@@ -155,7 +155,7 @@ export default function AdminArtistsPage() {
       return;
     }
 
-    const resp = await fetch("http://localhost:3000/api/admin/delete-user", {
+    const resp = await fetch("/api/admin/delete-user", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -224,7 +224,7 @@ export default function AdminArtistsPage() {
             <li>Create the user in Supabase Auth (email/password or invite).</li>
             <li>Ensure a row exists in <code>profiles</code> (often created on first login).</li>
             <li>Set Role = <strong>artist</strong>. (Full Name is optional.)</li>
-            <li>Assign events in <code>http://localhost:3000/admin/events</code> using Owner Link.</li>
+            <li>Assign events in <code>/admin/events</code> using Owner Link.</li>
           </ol>
         </div>
       </div>
@@ -295,7 +295,7 @@ export default function AdminArtistsPage() {
                         </button>
 
                         {(d.role || "") === "artist" ? (
-                          <a href="http://localhost:3000/artist/dashboard" target="_blank" rel="noreferrer" style={linkStyle}>
+                          <a href="/artist/dashboard" target="_blank" rel="noreferrer" style={linkStyle}>
                             Open Artist Portal
                           </a>
                         ) : null}
