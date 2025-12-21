@@ -1,6 +1,9 @@
 // pages/e/[slug].tsx
-// Public event page. Collectors land here from QR and submit COA requests.
-// IMPORTANT: no hardcoded localhost; uses relative routes and safe base URL.
+// Public event page (QR landing).
+// - No localhost hardcoding.
+// - Removes the "Link:" debug box.
+// - Fixes the login/signup loop by detecting auth state.
+// - If logged in, shows "Request COA" and routes to /dashboard?event=<slug>
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
@@ -28,18 +31,40 @@ export default function PublicEventPage() {
   const router = useRouter();
   const slug = typeof router.query.slug === "string" ? router.query.slug : null;
 
-  const [baseUrl, setBaseUrl] = useState<string>(""); // client-only fallback
   const [eventRow, setEventRow] = useState<EventRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Auth detection (prevents “log in” loop)
   useEffect(() => {
-    // Determine base URL for any absolute links (client-side only).
-    const env = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-    if (env) setBaseUrl(env);
-    else if (typeof window !== "undefined") setBaseUrl(window.location.origin);
+    let alive = true;
+
+    (async () => {
+      setAuthLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!alive) return;
+      setIsLoggedIn(!!user);
+      setAuthLoading(false);
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
+  // Load event data
   useEffect(() => {
     let alive = true;
 
@@ -74,14 +99,19 @@ export default function PublicEventPage() {
     };
   }, [slug]);
 
-  const isWithinWindow = useMemo(() => {
-    if (!eventRow) return false;
-    // If your system enforces windows elsewhere, keep this permissive.
-    // You can tighten later.
-    return true;
+  const canSubmit = useMemo(() => {
+    return !!eventRow?.is_active;
   }, [eventRow]);
 
-  const canSubmit = !!eventRow?.is_active && isWithinWindow;
+  const nextBackToThisEvent = useMemo(() => {
+    if (!slug) return "";
+    return `/e/${slug}`;
+  }, [slug]);
+
+  const requestHref = useMemo(() => {
+    if (!slug) return "/dashboard";
+    return `/dashboard?event=${encodeURIComponent(slug)}`;
+  }, [slug]);
 
   return (
     <div style={pageStyle}>
@@ -133,36 +163,38 @@ export default function PublicEventPage() {
               <div style={{ ...noticeBox, marginTop: 16 }}>
                 This event is not accepting submissions right now.
               </div>
+            ) : authLoading ? (
+              <div style={{ ...noticeBox, marginTop: 16 }}>Checking login…</div>
+            ) : isLoggedIn ? (
+              <div style={{ marginTop: 16 }}>
+                <p style={muted}>You’re logged in. Continue to submit your COA request.</p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <button style={primaryBtn} onClick={() => router.push(requestHref)}>
+                    Request COA
+                  </button>
+                  <Link href="/dashboard" style={secondaryLinkBtn}>
+                    Go to dashboard
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div style={{ marginTop: 16 }}>
-                <p style={muted}>
-                  To request a COA, you’ll need to log in first (or create an account).
-                </p>
+                <p style={muted}>To request a COA, you’ll need to log in first (or create an account).</p>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                   <button
                     style={primaryBtn}
-                    onClick={() => router.push(`/login?next=${encodeURIComponent(`/e/${eventRow.slug}`)}`)}
+                    onClick={() => router.push(`/login?next=${encodeURIComponent(nextBackToThisEvent)}`)}
                   >
                     Log in to request COA
                   </button>
                   <Link
-                    href={`/signup?next=${encodeURIComponent(`/e/${eventRow.slug}`)}`}
+                    href={`/signup?next=${encodeURIComponent(nextBackToThisEvent)}`}
                     style={secondaryLinkBtn}
                   >
                     Create account
                   </Link>
                 </div>
-
-                {/* Helpful absolute link for sharing/debug (not required) */}
-                {baseUrl ? (
-                  <div style={{ marginTop: 14, color: "#666", fontSize: "0.95rem" }}>
-                    Link:{" "}
-                    <code style={codePill}>
-                      {baseUrl}/e/{eventRow.slug}
-                    </code>
-                  </div>
-                ) : null}
               </div>
             )}
           </>
@@ -247,14 +279,4 @@ const badgeInactive: React.CSSProperties = {
   color: "#555",
   fontWeight: 900,
   fontSize: "0.9rem",
-};
-
-const codePill: React.CSSProperties = {
-  display: "inline-block",
-  background: "#f5f5f5",
-  border: "1px solid #ddd",
-  padding: "0.25rem 0.55rem",
-  borderRadius: 10,
-  fontWeight: 900,
-  overflowWrap: "anywhere",
 };
