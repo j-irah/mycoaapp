@@ -2,11 +2,10 @@
 // Public certificate page (no RPC).
 // Fetches certificate by qr_id directly from `signatures`.
 //
-// Option 1 fix: Always generate verification URL + QR using canonical site origin.
-// Priority:
-// 1) NEXT_PUBLIC_SITE_URL (recommended: https://www.rawauthentics.com)
-// 2) window.location.origin fallback
-// This prevents localhost URLs from ever appearing in production QR/print.
+// Includes:
+// - Canonical URL/QR via NEXT_PUBLIC_SITE_URL
+// - Print-friendly layout
+// - Cover image crop/max-height + subtle border/shadow for print
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -26,7 +25,7 @@ type SignatureRow = {
 
   witnessed_by: string | null;
 
-  image_url: string | null; // cover image if stored here (optional)
+  image_url: string | null; // cover image if stored here
   status: "active" | "revoked";
   created_at: string;
 };
@@ -52,14 +51,9 @@ function titleIssue(title?: string | null, issue?: string | null) {
 }
 
 function getCanonicalOrigin() {
-  // Expected value: https://www.rawauthentics.com
   const env = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  if (env) return env.replace(/\/+$/, ""); // remove trailing slash
-
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-
+  if (env) return env.replace(/\/+$/, "");
+  if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
   return "";
 }
 
@@ -70,13 +64,11 @@ export default function PublicCertPage() {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState<SignatureRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const publicUrl = useMemo(() => {
     if (!qr_id) return "";
     const origin = getCanonicalOrigin();
-    // Fallback to relative if origin missing (rare)
     return origin ? `${origin}/cert/${qr_id}` : `/cert/${qr_id}`;
   }, [qr_id]);
 
@@ -116,7 +108,6 @@ export default function PublicCertPage() {
       setRow(data as any);
       setLoading(false);
 
-      // Generate QR image client-side using canonical public URL
       try {
         const url = await QRCode.toDataURL(publicUrl, { margin: 1, width: 220 });
         if (!cancelled) setQrDataUrl(url);
@@ -144,6 +135,12 @@ export default function PublicCertPage() {
           body {
             background: #fff !important;
           }
+          /* Force the "sheet" to look good on paper */
+          .print-sheet {
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+          }
         }
       `}</style>
 
@@ -151,15 +148,13 @@ export default function PublicCertPage() {
         <Link href="/" style={brand}>
           Raw Authentics
         </Link>
-        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-          <button onClick={() => window.print()} style={btn}>
-            Print
-          </button>
-        </div>
+        <button onClick={() => window.print()} style={btn}>
+          Print
+        </button>
       </div>
 
       <main style={sheetWrap}>
-        <section style={sheet}>
+        <section style={sheet} className="print-sheet">
           {loading ? (
             <div style={{ padding: "2rem", color: "#444", fontWeight: 800 }}>Loading certificate…</div>
           ) : error ? (
@@ -270,10 +265,7 @@ export default function PublicCertPage() {
   );
 }
 
-const page: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f6f6f6",
-};
+const page: React.CSSProperties = { minHeight: "100vh", background: "#f6f6f6" };
 
 const topBar: React.CSSProperties = {
   maxWidth: 1100,
@@ -284,11 +276,7 @@ const topBar: React.CSSProperties = {
   justifyContent: "space-between",
 };
 
-const brand: React.CSSProperties = {
-  textDecoration: "none",
-  fontWeight: 900,
-  color: "#111",
-};
+const brand: React.CSSProperties = { textDecoration: "none", fontWeight: 900, color: "#111" };
 
 const btn: React.CSSProperties = {
   borderRadius: 12,
@@ -299,11 +287,7 @@ const btn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const sheetWrap: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: "0 1rem 2rem",
-};
+const sheetWrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "0 1rem 2rem" };
 
 const sheet: React.CSSProperties = {
   background: "#fff",
@@ -348,19 +332,40 @@ const bodyGrid: React.CSSProperties = {
 const left: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "1rem" };
 const right: React.CSSProperties = { position: "relative" };
 
+/**
+ * Cover image:
+ * - Use a max height so tall photos don't dominate print
+ * - Crop gracefully (object-fit: cover)
+ * - Add subtle border + shadow so it prints on white
+ */
 const coverBox: React.CSSProperties = {
-  border: "1px solid #eee",
   borderRadius: 16,
   overflow: "hidden",
   background: "#fafafa",
-  aspectRatio: "3 / 4",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+
+  // Print-friendly sizing:
+  maxHeight: 520,
+  width: "100%",
+
+  border: "1px solid #e5e5e5",
+  boxShadow: "0 8px 18px rgba(0,0,0,0.10)",
 };
 
-const coverImg: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
-const coverPlaceholder: React.CSSProperties = { color: "#999", fontWeight: 900 };
+const coverImg: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  maxHeight: 520,
+  objectFit: "cover",
+  display: "block",
+};
+
+const coverPlaceholder: React.CSSProperties = {
+  height: 520,
+  display: "grid",
+  placeItems: "center",
+  color: "#999",
+  fontWeight: 900,
+};
 
 const verifyCard: React.CSSProperties = {
   border: "1px solid #eee",
@@ -397,9 +402,6 @@ const qrWrap: React.CSSProperties = {
 const qrImg: React.CSSProperties = { width: 220, height: 220, display: "block" };
 const qrFallback: React.CSSProperties = { width: 220, height: 220, display: "grid", placeItems: "center", fontWeight: 900 };
 
-const footer: React.CSSProperties = {
-  padding: "1rem 1.6rem 1.6rem",
-  borderTop: "1px solid #eee",
-};
+const footer: React.CSSProperties = { padding: "1rem 1.6rem 1.6rem", borderTop: "1px solid #eee" };
 
 const link: React.CSSProperties = { fontWeight: 900, textDecoration: "underline", color: "#6a1b9a" };
