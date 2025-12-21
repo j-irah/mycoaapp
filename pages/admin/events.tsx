@@ -1,5 +1,7 @@
 // pages/admin/events.tsx
-// Admin events list (requires staff role). No localhost hardcoding.
+// Admin events list (requires staff role).
+// Adds Delete functionality back (with confirm + UI error handling).
+// No localhost hardcoding.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,14 +39,38 @@ export default function AdminEventsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+
+  async function loadEvents() {
+    setLoading(true);
+    setErr(null);
+
+    const { data, error } = await supabase
+      .from("events")
+      .select("id, slug, artist_name, event_name, event_date, event_end_date, is_active")
+      .order("event_date", { ascending: false });
+
+    if (error) {
+      setErr(error.message);
+      setRows([]);
+    } else {
+      setRows((data ?? []) as EventRow[]);
+    }
+
+    setLoading(false);
+  }
+
   useEffect(() => {
     let alive = true;
+
     (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!alive) return;
+
       if (!user) {
         setLoadingRole(false);
         return;
@@ -65,33 +91,39 @@ export default function AdminEventsPage() {
   useEffect(() => {
     let alive = true;
 
-    async function load() {
-      setLoading(true);
-      setErr(null);
-
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, slug, artist_name, event_name, event_date, event_end_date, is_active")
-        .order("event_date", { ascending: false });
-
-      if (!alive) return;
-
-      if (error) {
-        setErr(error.message);
-        setRows([]);
-      } else {
-        setRows((data ?? []) as EventRow[]);
-      }
-
-      setLoading(false);
-    }
-
-    load();
+    (async () => {
+      await loadEvents();
+    })();
 
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function onDeleteEvent(row: EventRow) {
+    setDeleteErr(null);
+
+    const ok = window.confirm(
+      `Delete this event?\n\n${row.event_name || "Event"} (${row.slug})\n\nThis cannot be undone.`
+    );
+    if (!ok) return;
+
+    setDeletingId(row.id);
+
+    const { error } = await supabase.from("events").delete().eq("id", row.id);
+
+    if (error) {
+      // Most common if RLS doesn't allow it
+      setDeleteErr(error.message);
+      setDeletingId(null);
+      return;
+    }
+
+    // Optimistic update
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    setDeletingId(null);
+  }
 
   return (
     <RequireAuth>
@@ -118,45 +150,60 @@ export default function AdminEventsPage() {
                 </Link>
               </div>
             </div>
-          ) : loading ? (
-            <div style={cardStyle}>Loading events…</div>
-          ) : err ? (
-            <div style={{ ...cardStyle, ...errorBox }}>{err}</div>
-          ) : rows.length === 0 ? (
-            <div style={cardStyle}>No events yet.</div>
           ) : (
-            <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-              {rows.map((r) => (
-                <div key={r.id} style={cardStyle}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: "1.15rem" }}>{r.event_name || "Event"}</div>
-                      <div style={{ marginTop: 4, color: "#666", fontWeight: 900 }}>
-                        {r.artist_name || "Artist"} • {fmtDateRange(r.event_date, r.event_end_date)}
+            <>
+              {deleteErr ? <div style={{ ...cardStyle, ...errorBox, marginTop: "1rem" }}>{deleteErr}</div> : null}
+
+              {loading ? (
+                <div style={{ ...cardStyle, marginTop: "1rem" }}>Loading events…</div>
+              ) : err ? (
+                <div style={{ ...cardStyle, ...errorBox, marginTop: "1rem" }}>{err}</div>
+              ) : rows.length === 0 ? (
+                <div style={{ ...cardStyle, marginTop: "1rem" }}>No events yet.</div>
+              ) : (
+                <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+                  {rows.map((r) => (
+                    <div key={r.id} style={cardStyle}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ fontWeight: 900, fontSize: "1.15rem" }}>{r.event_name || "Event"}</div>
+                          <div style={{ marginTop: 4, color: "#666", fontWeight: 900 }}>
+                            {r.artist_name || "Artist"} • {fmtDateRange(r.event_date, r.event_end_date)}
+                          </div>
+                          <div style={{ marginTop: 8 }}>
+                            <span style={r.is_active ? badgeActive : badgeInactive}>
+                              {r.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                          <Link href={`/admin/events/${r.slug}`} style={secondaryLinkBtn}>
+                            QR / Preview
+                          </Link>
+                          <Link href={`/e/${r.slug}`} style={secondaryLinkBtn} target="_blank" rel="noreferrer">
+                            Public Page
+                          </Link>
+
+                          <button
+                            onClick={() => onDeleteEvent(r)}
+                            style={dangerBtn}
+                            disabled={deletingId === r.id}
+                            title="Delete event"
+                          >
+                            {deletingId === r.id ? "Deleting…" : "Delete"}
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ marginTop: 8 }}>
-                        <span style={r.is_active ? badgeActive : badgeInactive}>
-                          {r.is_active ? "Active" : "Inactive"}
-                        </span>
+
+                      <div style={{ marginTop: 10, color: "#666", fontSize: "0.95rem" }}>
+                        Slug: <code style={codePill}>{r.slug}</code>
                       </div>
                     </div>
-
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                      <Link href={`/admin/events/${r.slug}`} style={secondaryLinkBtn}>
-                        QR / Preview
-                      </Link>
-                      <Link href={`/e/${r.slug}`} style={secondaryLinkBtn} target="_blank" rel="noreferrer">
-                        Public Page
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 10, color: "#666", fontSize: "0.95rem" }}>
-                    Slug: <code style={codePill}>{r.slug}</code>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -195,6 +242,16 @@ const secondaryLinkBtn: React.CSSProperties = {
   fontWeight: 900,
   textDecoration: "none",
   color: "#111",
+};
+
+const dangerBtn: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid #ffb3b3",
+  background: "#ffe6e6",
+  color: "#7a0000",
+  padding: "0.65rem 0.9rem",
+  fontWeight: 900,
+  cursor: "pointer",
 };
 
 const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#1976d2", textDecoration: "none" };

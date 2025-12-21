@@ -1,96 +1,127 @@
 // components/AdminNav.tsx
-// @ts-nocheck
+// Admin navigation (staff UI).
+// IMPORTANT: Uses relative routes only (no localhost hardcoding).
 
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-const NAV_LINKS = [
-  { label: "Dashboard", href: "http://localhost:3000/admin", match: "/admin" },
-  { label: "Events", href: "http://localhost:3000/admin/events", match: "/admin/events" },
-  { label: "Requests", href: "http://localhost:3000/admin/requests", match: "/admin/requests" },
-  { label: "Create", href: "http://localhost:3000/admin/create", match: "/admin/create" },
-  { label: "Artists", href: "http://localhost:3000/admin/artists", match: "/admin/artists" },
-  { label: "Artist Requests", href: "http://localhost:3000/admin/artist-requests", match: "/admin/artist-requests" },
+type NavItem = {
+  label: string;
+  href: string;
+};
+
+const ITEMS: NavItem[] = [
+  { label: "Events", href: "/admin/events" },
+  { label: "Requests", href: "/admin/requests" },
+  { label: "Create", href: "/admin/create" },
+  { label: "Artists", href: "/admin/artists" },
+  { label: "Artist Requests", href: "/admin/artist-requests" },
 ];
 
 export default function AdminNav() {
   const router = useRouter();
 
-  async function handleLogout() {
+  async function onLogout() {
     await supabase.auth.signOut();
-    router.push("http://localhost:3000/login?returnTo=/admin");
+    router.replace("/login");
   }
-
-  const isActive = (match: string) => {
-    const path = router.pathname || "";
-    if (match === "/admin") return path === "/admin";
-    return path.startsWith(match);
-  };
 
   return (
     <nav style={navStyle}>
-      <div style={left}>
-        {NAV_LINKS.map((l) => (
-          <Link key={l.href} href={l.href} style={isActive(l.match) ? activeLink : linkStyle}>
-            {l.label}
-          </Link>
-        ))}
-      </div>
+      <div style={innerStyle}>
+        <Link href="/admin" style={brandStyle}>
+          Raw Authentics
+        </Link>
 
-      <div style={right}>
-        <button onClick={handleLogout} style={logoutBtn}>
-          Logout
-        </button>
+        <div style={linksWrapStyle}>
+          {ITEMS.map((item) => {
+            const active =
+              router.pathname === item.href ||
+              (item.href !== "/admin" && router.asPath.startsWith(item.href));
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  ...linkStyle,
+                  ...(active ? activeLinkStyle : null),
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div style={rightStyle}>
+          <button onClick={onLogout} style={logoutBtnStyle}>
+            Logout
+          </button>
+        </div>
       </div>
     </nav>
   );
 }
 
 const navStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "1rem",
-  padding: "0.75rem 1.25rem",
-  background: "#f5f5f5",
-  borderBottom: "1px solid #ddd",
+  background: "#fff",
+  borderBottom: "1px solid #eaeaea",
   fontFamily: "Arial, sans-serif",
 };
 
-const left: React.CSSProperties = {
+const innerStyle: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: "0 auto",
+  padding: "0.9rem 1.25rem",
   display: "flex",
-  gap: "1rem",
   alignItems: "center",
-  flexWrap: "wrap",
+  gap: "1rem",
+  justifyContent: "space-between",
 };
 
-const right: React.CSSProperties = {
+const brandStyle: React.CSSProperties = {
+  fontWeight: 900,
+  textDecoration: "none",
+  color: "#111",
+  fontSize: "1.05rem",
+  whiteSpace: "nowrap",
+};
+
+const linksWrapStyle: React.CSSProperties = {
   display: "flex",
-  gap: "0.75rem",
   alignItems: "center",
+  gap: "1.1rem",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  flex: 1,
 };
 
 const linkStyle: React.CSSProperties = {
   textDecoration: "none",
-  color: "#333",
+  color: "#111",
   fontWeight: 900,
-  padding: "0.35rem 0.6rem",
-  borderRadius: 10,
+  padding: "0.25rem 0.15rem",
 };
 
-const activeLink: React.CSSProperties = {
-  ...linkStyle,
-  background: "#e9f1ff",
-  border: "1px solid #b7d0ff",
-  color: "#0b3d91",
+const activeLinkStyle: React.CSSProperties = {
+  color: "#1976d2",
+  textDecoration: "underline",
+  textUnderlineOffset: 6,
 };
 
-const logoutBtn: React.CSSProperties = {
-  padding: "0.45rem 0.75rem",
-  borderRadius: 10,
+const rightStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+};
+
+const logoutBtnStyle: React.CSSProperties = {
   border: "1px solid #ddd",
-  background: "#fff",
-  cursor: "pointer",
+  background: "#f7f7f7",
+  padding: "0.5rem 0.75rem",
+  borderRadius: 10,
   fontWeight: 900,
+  cursor: "pointer",
 };
