@@ -1,240 +1,206 @@
 // pages/login.tsx
-// @ts-nocheck
+// NOTE: All routing is relative so it works on production domains (no localhost hardcoding).
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-const COLLECTOR_HOME = "http://localhost:3000/collector/dashboard";
+type StaffRole = "owner" | "admin" | "reviewer";
+type Role = StaffRole | "artist" | null;
 
-function isStaffRole(role: string | null) {
-  return role === "owner" || role === "admin" || role === "reviewer";
+const STAFF_ROLES: StaffRole[] = ["owner", "admin", "reviewer"];
+const COLLECTOR_HOME = "/dashboard";
+
+function safeNext(input: unknown) {
+  const s = typeof input === "string" ? input : "";
+  if (!s) return "";
+  if (!s.startsWith("/")) return "";
+  if (s.startsWith("//")) return "";
+  return s;
 }
 
-function safeNext(next: string) {
-  if (next && next.startsWith("/")) return next;
-  return "";
+async function fetchRole(userId: string): Promise<Role> {
+  const { data } = await supabase.from("profiles").select("role").eq("id", userId).single();
+  return (data?.role ?? null) as Role;
+}
+
+async function routeByRole(router: ReturnType<typeof useRouter>, nextUrl: string) {
+  const safe = safeNext(nextUrl);
+
+  if (safe) {
+    router.replace(safe);
+    return;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    router.replace("/login");
+    return;
+  }
+
+  const role = await fetchRole(user.id);
+
+  if (role === "artist") {
+    router.replace("/artist/dashboard");
+    return;
+  }
+
+  if (role && STAFF_ROLES.includes(role as StaffRole)) {
+    router.replace("/admin");
+    return;
+  }
+
+  router.replace(COLLECTOR_HOME);
 }
 
 export default function LoginPage() {
   const router = useRouter();
-  const rawNext = typeof router.query.next === "string" ? router.query.next : "";
-  const next = safeNext(rawNext);
+  const next = useMemo(() => safeNext(router.query.next), [router.query.next]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  // If already logged in, route immediately based on role
+  const signupHref = next ? `/signup?next=${encodeURIComponent(next)}` : "/signup";
+  const forgotHref = next ? `/forgot-password?next=${encodeURIComponent(next)}` : "/forgot-password";
+
   useEffect(() => {
-    let active = true;
+    let alive = true;
 
-    async function boot() {
+    (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!active) return;
-      if (!user) return;
+      if (!alive) return;
+      if (user) await routeByRole(router, next);
+    })();
 
-      await routeByRole(user.id, next);
-    }
-
-    boot();
     return () => {
-      active = false;
+      alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [next]);
+  }, [router, next]);
 
-  async function routeByRole(userId: string, nextUrl?: string) {
-    // If next exists, prefer it (return-to-event flow)
-    if (nextUrl && nextUrl.startsWith("/")) {
-      router.replace(`http://localhost:3000${nextUrl}`);
-      return;
-    }
-
-    const pr = await supabase.from("profiles").select("role").eq("id", userId).single();
-    const role = pr?.data?.role ?? null;
-
-    if (role === "artist") {
-      router.replace("http://localhost:3000/artist/dashboard");
-      return;
-    }
-
-    if (isStaffRole(role)) {
-      router.replace("http://localhost:3000/admin");
-      return;
-    }
-
-    // Collector (role null)
-    router.replace(COLLECTOR_HOME);
-  }
-
-  async function handleLogin(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setLoading(true);
+    setErr(null);
 
-    const res = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (res.error) {
-      setError(res.error.message || "Login failed.");
+    if (error) {
+      setErr(error.message);
       setLoading(false);
       return;
     }
 
-    const userId = res.data?.user?.id;
-    if (!userId) {
-      setError("Login succeeded but no user session was returned.");
-      setLoading(false);
-      return;
-    }
-
-    await routeByRole(userId, next);
+    await routeByRole(router, next);
     setLoading(false);
   }
 
-  const signupHref = next
-    ? `http://localhost:3000/signup?next=${encodeURIComponent(next)}`
-    : "http://localhost:3000/signup";
-
-  const forgotHref = next
-    ? `http://localhost:3000/forgot-password?next=${encodeURIComponent(next)}`
-    : "http://localhost:3000/forgot-password";
-
   return (
-    <div style={wrap}>
-      <div style={card}>
-        <h1 style={{ marginTop: 0 }}>Login</h1>
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h1 style={{ margin: 0, fontWeight: 900 }}>Login</h1>
+        <p style={{ marginTop: 8, color: "#666" }}>Use your email + password.</p>
 
-        {error ? <div style={errorBox}>{error}</div> : null}
+        {err ? <div style={errorBox}>{err}</div> : null}
 
-        <form onSubmit={handleLogin}>
-          <label style={label}>Email</label>
+        <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+          <label style={labelStyle}>Email</label>
           <input
-            style={input}
+            style={inputStyle}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            required
             autoComplete="email"
-            placeholder="you@example.com"
           />
 
-          <label style={label}>Password</label>
+          <label style={{ ...labelStyle, marginTop: 12 }}>Password</label>
           <input
-            style={input}
+            style={inputStyle}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
             type="password"
-            placeholder="••••••••"
+            required
+            autoComplete="current-password"
           />
 
-          <button type="submit" style={btn} disabled={loading}>
+          <button style={primaryBtn} disabled={loading}>
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
 
-        <div style={footerCol}>
-          <div style={footerRow}>
-            <span style={{ color: "#64748b", fontWeight: 800 }}>Don’t have an account?</span>
-            <Link href={signupHref} style={linkStyle}>
-              Sign up
-            </Link>
-          </div>
-
-          <div style={footerRow}>
-            <span style={{ color: "#64748b", fontWeight: 800 }}>Forgot your password?</span>
-            <Link href={forgotHref} style={linkStyle}>
-              Reset it
-            </Link>
-          </div>
+        <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <Link href={signupHref} style={linkStyle}>
+            Create account
+          </Link>
+          <Link href={forgotHref} style={linkStyle}>
+            Forgot password?
+          </Link>
         </div>
       </div>
     </div>
   );
 }
 
-const wrap: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
-  padding: 16,
+  background: "#f3f3f3",
+  padding: "2rem",
   fontFamily: "Arial, sans-serif",
 };
 
-const card: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
   width: "100%",
-  maxWidth: 460,
-  background: "white",
-  border: "1px solid rgba(15, 23, 42, 0.10)",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  maxWidth: 420,
+  background: "#fff",
+  borderRadius: 14,
+  padding: "1.25rem",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
 };
 
-const label: React.CSSProperties = {
-  display: "block",
-  marginTop: 10,
-  marginBottom: 6,
-  fontWeight: 900,
-  color: "#0f172a",
-};
+const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, marginTop: 6 };
 
-const input: React.CSSProperties = {
+const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
+  marginTop: 6,
   borderRadius: 12,
-  border: "1px solid rgba(15, 23, 42, 0.16)",
-  fontWeight: 800,
-  boxSizing: "border-box",
+  border: "1px solid #ddd",
+  padding: "0.7rem 0.8rem",
+  outline: "none",
 };
 
-const btn: React.CSSProperties = {
-  width: "100%",
+const primaryBtn: React.CSSProperties = {
   marginTop: 14,
-  padding: "10px 14px",
+  width: "100%",
   borderRadius: 12,
-  background: "#1976d2",
-  color: "white",
-  fontWeight: 900,
   border: "none",
+  background: "#1976d2",
+  color: "#fff",
+  padding: "0.75rem 1rem",
+  fontWeight: 900,
   cursor: "pointer",
 };
 
-const footerCol: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const footerRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, textDecoration: "none", color: "#1976d2" };
 
 const errorBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#ffe6e6",
   border: "1px solid #ffb3b3",
   color: "#7a0000",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
 };

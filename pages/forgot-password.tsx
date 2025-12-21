@@ -1,73 +1,76 @@
 // pages/forgot-password.tsx
-// @ts-nocheck
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
+function safeNext(input: unknown) {
+  const s = typeof input === "string" ? input : "";
+  if (!s) return "";
+  if (!s.startsWith("/")) return "";
+  if (s.startsWith("//")) return "";
+  return s;
+}
+
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const next = typeof router.query.next === "string" ? router.query.next : "";
+  const next = useMemo(() => safeNext(router.query.next), [router.query.next]);
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function handleSend(e: React.FormEvent) {
+  const redirectTo = next
+    ? `/reset-password?next=${encodeURIComponent(next)}`
+    : "/reset-password";
+
+  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    const em = email.trim();
-    if (!em) return setError("Email is required.");
-
     setLoading(true);
+    setErr(null);
+    setMsg(null);
 
-    const redirectTo = next
-      ? `http://localhost:3000/reset-password?next=${encodeURIComponent(next)}`
-      : "http://localhost:3000/reset-password";
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
-    const res = await supabase.auth.resetPasswordForEmail(em, { redirectTo });
-
-    if (res.error) {
-      setError(res.error.message);
+    if (error) {
+      setErr(error.message);
       setLoading(false);
       return;
     }
 
-    setSuccess("If that email exists, a password reset link has been sent.");
+    setMsg("If that email exists, you’ll receive a reset link.");
     setLoading(false);
   }
 
-  const loginHref = next ? `http://localhost:3000/login?next=${encodeURIComponent(next)}` : "http://localhost:3000/login";
-
   return (
-    <div style={wrap}>
-      <div style={card}>
-        <h1 style={{ marginTop: 0 }}>Reset password</h1>
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h1 style={{ margin: 0, fontWeight: 900 }}>Forgot password</h1>
+        <p style={{ marginTop: 8, color: "#666" }}>We’ll email you a reset link.</p>
 
-        {error ? <div style={errorBox}>{error}</div> : null}
-        {success ? <div style={successBox}>{success}</div> : null}
+        {err ? <div style={errorBox}>{err}</div> : null}
+        {msg ? <div style={successBox}>{msg}</div> : null}
 
-        <form onSubmit={handleSend}>
-          <label style={label}>Email</label>
+        <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+          <label style={labelStyle}>Email</label>
           <input
-            style={input}
+            style={inputStyle}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            placeholder="you@example.com"
+            type="email"
+            required
           />
 
-          <button type="submit" style={btn} disabled={loading}>
+          <button style={primaryBtn} disabled={loading}>
             {loading ? "Sending…" : "Send reset link"}
           </button>
         </form>
 
-        <div style={footerRow}>
-          <span style={{ color: "#64748b", fontWeight: 800 }}>Remembered it?</span>
+        <div style={{ marginTop: 14 }}>
           <Link href={loginHref} style={linkStyle}>
             Back to login
           </Link>
@@ -77,84 +80,66 @@ export default function ForgotPasswordPage() {
   );
 }
 
-const wrap: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
-  padding: 16,
+  background: "#f3f3f3",
+  padding: "2rem",
   fontFamily: "Arial, sans-serif",
 };
 
-const card: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
   width: "100%",
-  maxWidth: 460,
-  background: "white",
-  border: "1px solid rgba(15, 23, 42, 0.10)",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  maxWidth: 420,
+  background: "#fff",
+  borderRadius: 14,
+  padding: "1.25rem",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
 };
 
-const label: React.CSSProperties = {
-  display: "block",
-  marginTop: 10,
-  marginBottom: 6,
-  fontWeight: 900,
-  color: "#0f172a",
-};
+const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, marginTop: 6 };
 
-const input: React.CSSProperties = {
+const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
+  marginTop: 6,
   borderRadius: 12,
-  border: "1px solid rgba(15, 23, 42, 0.16)",
-  fontWeight: 800,
-  boxSizing: "border-box",
+  border: "1px solid #ddd",
+  padding: "0.7rem 0.8rem",
+  outline: "none",
 };
 
-const btn: React.CSSProperties = {
-  width: "100%",
+const primaryBtn: React.CSSProperties = {
   marginTop: 14,
-  padding: "10px 14px",
+  width: "100%",
   borderRadius: 12,
-  background: "#1976d2",
-  color: "white",
-  fontWeight: 900,
   border: "none",
+  background: "#1976d2",
+  color: "#fff",
+  padding: "0.75rem 1rem",
+  fontWeight: 900,
   cursor: "pointer",
 };
 
-const footerRow: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, textDecoration: "none", color: "#1976d2" };
 
 const errorBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#ffe6e6",
   border: "1px solid #ffb3b3",
   color: "#7a0000",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
 };
 
 const successBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#e9f7ef",
   border: "1px solid #b7ebc6",
   color: "#14532d",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
 };

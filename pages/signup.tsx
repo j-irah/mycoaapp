@@ -1,319 +1,165 @@
 // pages/signup.tsx
-// @ts-nocheck
+// NOTE: all navigation is relative.
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-function safeNext(next: string) {
-  if (next && next.startsWith("/")) return next;
-  return "";
+function safeNext(input: unknown) {
+  const s = typeof input === "string" ? input : "";
+  if (!s) return "";
+  if (!s.startsWith("/")) return "";
+  if (s.startsWith("//")) return "";
+  return s;
 }
 
 export default function SignupPage() {
   const router = useRouter();
-  const rawNext = typeof router.query.next === "string" ? router.query.next : "";
-  const next = safeNext(rawNext);
+  const next = useMemo(() => safeNext(router.query.next), [router.query.next]);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
   const [requestArtist, setRequestArtist] = useState(false);
-  const [portfolioUrl, setPortfolioUrl] = useState("");
-  const [message, setMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    setError(null);
-    setSuccess(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.asPath]);
+  const forgotHref = next ? `/forgot-password?next=${encodeURIComponent(next)}` : "/forgot-password";
+  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
 
-  async function handleSignup(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setErr(null);
 
-    const name = fullName.trim();
-    const em = email.trim();
-
-    if (!name) return setError("Full name is required.");
-    if (!em) return setError("Email is required.");
-    if (!password) return setError("Password is required.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
-    if (password !== confirmPassword) return setError("Passwords do not match.");
+    if (pw1 !== pw2) {
+      setErr("Passwords do not match.");
+      return;
+    }
 
     setLoading(true);
 
-    // Create auth user (collector by default; staff approves artist role later)
-    const res = await supabase.auth.signUp({
-      email: em,
-      password,
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: pw1,
       options: {
-        data: { full_name: name },
+        data: { full_name: fullName, request_artist: requestArtist },
       },
     });
 
-    if (res.error) {
-      setError(res.error.message);
+    if (error) {
+      setErr(error.message);
       setLoading(false);
       return;
     }
 
-    const userId = res.data?.user?.id;
-
-    // If they requested artist, create an artist_request row
-    if (requestArtist && userId) {
-      const ar = await supabase.from("artist_requests").insert({
-        user_id: userId,
-        full_name: name,
-        portfolio_url: portfolioUrl.trim() || null,
-        message: message.trim() || null,
-        status: "pending",
-      });
-
-      if (ar.error) {
-        setError(ar.error.message);
-        setLoading(false);
-        return;
-      }
+    // If email confirmation is enabled, user may be null. In either case, send to login.
+    if (!data.user) {
+      router.replace(loginHref);
+      setLoading(false);
+      return;
     }
 
-    // Prevent any immediate auto-routing in-app after signup
-    await supabase.auth.signOut();
-
+    router.replace(next || "/dashboard");
     setLoading(false);
-
-    setSuccess(
-      requestArtist
-        ? "Account created. Your artist request is pending staff approval. Please sign in."
-        : "Account created. Please sign in."
-    );
-
-    const loginHref = next
-      ? `http://localhost:3000/login?next=${encodeURIComponent(next)}`
-      : "http://localhost:3000/login";
-
-    setTimeout(() => router.replace(loginHref), 900);
   }
 
-  const loginHref = next
-    ? `http://localhost:3000/login?next=${encodeURIComponent(next)}`
-    : "http://localhost:3000/login";
-
-  const forgotHref = next
-    ? `http://localhost:3000/forgot-password?next=${encodeURIComponent(next)}`
-    : "http://localhost:3000/forgot-password";
-
   return (
-    <div style={wrap}>
-      <div style={card}>
-        <h1 style={{ marginTop: 0 }}>Create account</h1>
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h1 style={{ margin: 0, fontWeight: 900 }}>Create account</h1>
+        <p style={{ marginTop: 8, color: "#666" }}>Collectors default to the collector dashboard.</p>
 
-        {error ? <div style={errorBox}>{error}</div> : null}
-        {success ? <div style={successBox}>{success}</div> : null}
+        {err ? <div style={errorBox}>{err}</div> : null}
 
-        <form onSubmit={handleSignup}>
-          <label style={label}>Full name</label>
-          <input
-            style={input}
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            autoComplete="name"
-            placeholder="Jane Artist"
-          />
+        <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+          <label style={labelStyle}>Full name</label>
+          <input style={inputStyle} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
 
-          <label style={label}>Email</label>
-          <input
-            style={input}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            placeholder="you@example.com"
-            type="email"
-            required
-          />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Email</label>
+          <input style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
 
-          <label style={label}>Password</label>
-          <input
-            style={input}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            type="password"
-            placeholder="Use 8+ characters"
-            required
-          />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Password</label>
+          <input style={inputStyle} value={pw1} onChange={(e) => setPw1(e.target.value)} type="password" required />
 
-          <label style={label}>Confirm password</label>
-          <input
-            style={input}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            autoComplete="new-password"
-            type="password"
-            placeholder="Re-enter password"
-            required
-          />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Confirm password</label>
+          <input style={inputStyle} value={pw2} onChange={(e) => setPw2(e.target.value)} type="password" required />
 
-          <div style={{ marginTop: 12, ...softBox }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "center", fontWeight: 900 }}>
-              <input type="checkbox" checked={requestArtist} onChange={(e) => setRequestArtist(e.target.checked)} />
-              Request Artist Account (requires staff approval)
-            </label>
+          <label style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "center" }}>
+            <input type="checkbox" checked={requestArtist} onChange={(e) => setRequestArtist(e.target.checked)} />
+            <span style={{ fontWeight: 900 }}>Request artist account</span>
+          </label>
 
-            {requestArtist ? (
-              <div style={{ marginTop: 10 }}>
-                <label style={labelSmall}>Portfolio URL (optional)</label>
-                <input
-                  style={input}
-                  value={portfolioUrl}
-                  onChange={(e) => setPortfolioUrl(e.target.value)}
-                  placeholder="https://…"
-                />
-
-                <label style={labelSmall}>Message (optional)</label>
-                <textarea
-                  style={{ ...input, minHeight: 90, resize: "vertical" }}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Tell us where you’ll be signing, your socials, etc."
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <button type="submit" style={btn} disabled={loading}>
-            {loading ? "Creating…" : "Create account"}
+          <button style={primaryBtn} disabled={loading}>
+            {loading ? "Creating…" : "Create Account"}
           </button>
         </form>
 
-        <div style={footerCol}>
-          <div style={footerRow}>
-            <span style={{ color: "#64748b", fontWeight: 800 }}>Already have an account?</span>
-            <Link href={loginHref} style={linkStyle}>
-              Sign in
-            </Link>
-          </div>
-
-          <div style={footerRow}>
-            <span style={{ color: "#64748b", fontWeight: 800 }}>Forgot your password?</span>
-            <Link href={forgotHref} style={linkStyle}>
-              Reset it
-            </Link>
-          </div>
+        <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <Link href={loginHref} style={linkStyle}>
+            Back to login
+          </Link>
+          <Link href={forgotHref} style={linkStyle}>
+            Forgot password?
+          </Link>
         </div>
       </div>
     </div>
   );
 }
 
-const wrap: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
-  padding: 16,
+  background: "#f3f3f3",
+  padding: "2rem",
   fontFamily: "Arial, sans-serif",
 };
 
-const card: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 460,
-  background: "white",
-  border: "1px solid rgba(15, 23, 42, 0.10)",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  background: "#fff",
+  borderRadius: 14,
+  padding: "1.25rem",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
 };
 
-const label: React.CSSProperties = {
-  display: "block",
-  marginTop: 10,
-  marginBottom: 6,
-  fontWeight: 900,
-  color: "#0f172a",
-};
+const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, marginTop: 6 };
 
-const labelSmall: React.CSSProperties = {
-  display: "block",
-  marginTop: 10,
-  marginBottom: 6,
-  fontWeight: 900,
-  color: "#0f172a",
-  fontSize: 13,
-};
-
-const input: React.CSSProperties = {
+const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
+  marginTop: 6,
   borderRadius: 12,
-  border: "1px solid rgba(15, 23, 42, 0.16)",
-  fontWeight: 800,
-  boxSizing: "border-box",
+  border: "1px solid #ddd",
+  padding: "0.7rem 0.8rem",
+  outline: "none",
 };
 
-const btn: React.CSSProperties = {
-  width: "100%",
+const primaryBtn: React.CSSProperties = {
   marginTop: 14,
-  padding: "10px 14px",
+  width: "100%",
   borderRadius: 12,
-  background: "#1976d2",
-  color: "white",
-  fontWeight: 900,
   border: "none",
+  background: "#1976d2",
+  color: "#fff",
+  padding: "0.75rem 1rem",
+  fontWeight: 900,
   cursor: "pointer",
 };
 
-const footerCol: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const footerRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, textDecoration: "none", color: "#1976d2" };
 
 const errorBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#ffe6e6",
   border: "1px solid #ffb3b3",
   color: "#7a0000",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
-};
-
-const successBox: React.CSSProperties = {
-  background: "#e9f7ef",
-  border: "1px solid #b7ebc6",
-  color: "#14532d",
-  padding: 12,
-  borderRadius: 12,
-  fontWeight: 900,
-  marginBottom: 10,
-};
-
-const softBox: React.CSSProperties = {
-  background: "rgba(15, 23, 42, 0.04)",
-  border: "1px solid rgba(15, 23, 42, 0.10)",
-  borderRadius: 12,
-  padding: 12,
 };

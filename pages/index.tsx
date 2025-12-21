@@ -28,29 +28,21 @@ export default function IndexPage() {
     let cancelled = false;
 
     (async () => {
-      // 1) Get authenticated user
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      // 2) Not logged in -> go to /login
       if (!user) {
-        router.replace("http://localhost:3000/login");
+        router.replace("/login");
         return;
       }
 
-      // 3) Logged in -> role-based redirect
       const role = await getMyRole(user.id);
-
       if (cancelled) return;
 
-      if (isStaff(role)) {
-        router.replace("http://localhost:3000/admin");
-      } else {
-        router.replace("http://localhost:3000/dashboard");
-      }
+      router.replace(isStaff(role) ? "/admin" : "/dashboard");
     })();
 
     return () => {

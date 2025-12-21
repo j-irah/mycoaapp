@@ -1,206 +1,172 @@
 // pages/reset-password.tsx
-// @ts-nocheck
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
+function safeNext(input: unknown) {
+  const s = typeof input === "string" ? input : "";
+  if (!s) return "";
+  if (!s.startsWith("/")) return "";
+  if (s.startsWith("//")) return "";
+  return s;
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const next = typeof router.query.next === "string" ? router.query.next : "";
+  const next = useMemo(() => safeNext(router.query.next), [router.query.next]);
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [ready, setReady] = useState(false);
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
 
   useEffect(() => {
-    // Supabase sets the session when arriving from the reset email link
-    // We just check if user exists to determine readiness.
-    let active = true;
+    // Ensure the user has a recovery session (Supabase sets it via the reset link)
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    async function boot() {
-      const { data } = await supabase.auth.getUser();
-      if (!active) return;
-      setReady(!!data?.user);
-    }
+      if (!user) {
+        // They might have opened the page directly without the recovery token
+        // Send them back to login.
+        router.replace("/login");
+      }
+    })();
+  }, [router]);
 
-    boot();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  async function handleSetPassword(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setErr(null);
+    setMsg(null);
 
-    if (!ready) return setError("Reset link is invalid or expired. Please request a new one.");
-    if (!password) return setError("Password is required.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
-    if (password !== confirmPassword) return setError("Passwords do not match.");
+    if (pw1 !== pw2) {
+      setErr("Passwords do not match.");
+      return;
+    }
 
     setLoading(true);
 
-    const res = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({ password: pw1 });
 
-    if (res.error) {
-      setError(res.error.message);
+    if (error) {
+      setErr(error.message);
       setLoading(false);
       return;
     }
 
-    setSuccess("Password updated. You can now log in.");
+    setMsg("Password updated. You can now log in.");
     setLoading(false);
-
-    const loginHref = next
-      ? `http://localhost:3000/login?next=${encodeURIComponent(next)}`
-      : "http://localhost:3000/login";
-
-    setTimeout(() => router.replace(loginHref), 900);
   }
 
-  const forgotHref = next
-    ? `http://localhost:3000/forgot-password?next=${encodeURIComponent(next)}`
-    : "http://localhost:3000/forgot-password";
-
   return (
-    <div style={wrap}>
-      <div style={card}>
-        <h1 style={{ marginTop: 0 }}>Choose a new password</h1>
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h1 style={{ margin: 0, fontWeight: 900 }}>Reset password</h1>
+        <p style={{ marginTop: 8, color: "#666" }}>Enter your new password.</p>
 
-        {!ready ? (
-          <>
-            <div style={errorBox}>
-              Reset link is invalid or expired. Please request a new reset link.
-            </div>
-            <div style={footerRow}>
-              <span style={{ color: "#64748b", fontWeight: 800 }}>Need a new link?</span>
-              <Link href={forgotHref} style={linkStyle}>
-                Reset password
-              </Link>
-            </div>
-          </>
-        ) : (
-          <>
-            {error ? <div style={errorBox}>{error}</div> : null}
-            {success ? <div style={successBox}>{success}</div> : null}
+        {err ? <div style={errorBox}>{err}</div> : null}
+        {msg ? <div style={successBox}>{msg}</div> : null}
 
-            <form onSubmit={handleSetPassword}>
-              <label style={label}>New password</label>
-              <input
-                style={input}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                type="password"
-                placeholder="Use 8+ characters"
-              />
+        <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+          <label style={labelStyle}>New password</label>
+          <input
+            style={inputStyle}
+            value={pw1}
+            onChange={(e) => setPw1(e.target.value)}
+            type="password"
+            required
+          />
 
-              <label style={label}>Confirm password</label>
-              <input
-                style={input}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                type="password"
-                placeholder="Re-enter password"
-              />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Confirm new password</label>
+          <input
+            style={inputStyle}
+            value={pw2}
+            onChange={(e) => setPw2(e.target.value)}
+            type="password"
+            required
+          />
 
-              <button type="submit" style={btn} disabled={loading}>
-                {loading ? "Updating…" : "Update password"}
-              </button>
-            </form>
-          </>
-        )}
+          <button style={primaryBtn} disabled={loading}>
+            {loading ? "Updating…" : "Update password"}
+          </button>
+        </form>
+
+        <div style={{ marginTop: 14 }}>
+          <Link href={loginHref} style={linkStyle}>
+            Back to login
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
-const wrap: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
-  padding: 16,
+  background: "#f3f3f3",
+  padding: "2rem",
   fontFamily: "Arial, sans-serif",
 };
 
-const card: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
   width: "100%",
-  maxWidth: 460,
-  background: "white",
-  border: "1px solid rgba(15, 23, 42, 0.10)",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  maxWidth: 420,
+  background: "#fff",
+  borderRadius: 14,
+  padding: "1.25rem",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
 };
 
-const label: React.CSSProperties = {
-  display: "block",
-  marginTop: 10,
-  marginBottom: 6,
-  fontWeight: 900,
-  color: "#0f172a",
-};
+const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, marginTop: 6 };
 
-const input: React.CSSProperties = {
+const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
+  marginTop: 6,
   borderRadius: 12,
-  border: "1px solid rgba(15, 23, 42, 0.16)",
-  fontWeight: 800,
-  boxSizing: "border-box",
+  border: "1px solid #ddd",
+  padding: "0.7rem 0.8rem",
+  outline: "none",
 };
 
-const btn: React.CSSProperties = {
-  width: "100%",
+const primaryBtn: React.CSSProperties = {
   marginTop: 14,
-  padding: "10px 14px",
+  width: "100%",
   borderRadius: 12,
-  background: "#1976d2",
-  color: "white",
-  fontWeight: 900,
   border: "none",
+  background: "#1976d2",
+  color: "#fff",
+  padding: "0.75rem 1rem",
+  fontWeight: 900,
   cursor: "pointer",
 };
 
-const footerRow: React.CSSProperties = {
-  marginTop: 14,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, textDecoration: "none", color: "#1976d2" };
 
 const errorBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#ffe6e6",
   border: "1px solid #ffb3b3",
   color: "#7a0000",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
 };
 
 const successBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: "0.8rem",
+  borderRadius: 12,
   background: "#e9f7ef",
   border: "1px solid #b7ebc6",
   color: "#14532d",
-  padding: 12,
-  borderRadius: 12,
   fontWeight: 900,
-  marginBottom: 10,
 };
