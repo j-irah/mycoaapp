@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminLayout from "../../components/AdminLayout";
 import { supabase } from "../../lib/supabaseClient";
-import { generateSlug } from "../../lib/generateSlug";
 
 function requestDateAsYYYYMMDD(created_at: string | null) {
   if (!created_at) return null;
@@ -31,7 +30,8 @@ function looksLikeUrl(v: string) {
   return /^https?:\/\//i.test(v);
 }
 
-// ✅ Your bucket from the screenshot:
+// Buckets
+const PROOF_BUCKET = "request-proofs";
 const BOOK_PHOTO_BUCKET = "request-books";
 
 export default function AdminRequestsPage() {
@@ -115,7 +115,7 @@ export default function AdminRequestsPage() {
     setProofSignedUrl(null);
 
     try {
-      const { data, error } = await supabase.storage.from("request-proofs").createSignedUrl(proofPath, 60 * 10);
+      const { data, error } = await supabase.storage.from(PROOF_BUCKET).createSignedUrl(proofPath, 60 * 10);
       if (error) throw new Error(error.message);
       setProofSignedUrl(data?.signedUrl || null);
     } catch (e: any) {
@@ -192,16 +192,15 @@ export default function AdminRequestsPage() {
           signed_date: eventsMap?.[req.event_id]?.event_date || null,
           signed_location: eventsMap?.[req.event_id]?.event_location || null,
           witnessed_by: req.attested ? profilesMap?.[req.collector_user_id]?.email || req.witness_name || null : null,
-          request_id: req.id,
+
+          // ✅ NEW: persist cover image onto the COA
+          book_image_url: req.book_image_url || null,
         }),
       });
 
       const created = await res.json();
       if (!res.ok) throw new Error(created?.error || "Failed to create COA");
 
-      // Support BOTH shapes:
-      // - New: { id, qr_id, coa }
-      // - Old: { coa: { id, qr_id, ... } }
       const coa = created?.coa ?? null;
       const issuedId = created?.id ?? coa?.id ?? null;
 
@@ -343,12 +342,10 @@ export default function AdminRequestsPage() {
                         Open
                       </button>
 
-                      {/* NOTE: This link may still be wrong until we wire issued_coa_id -> signatures.qr_id.
-                          Step 1 is only fixing issued_coa_id being NULL. We’ll fix the link in Step 2. */}
                       {r.issued_coa_id && (
                         <div style={{ marginTop: "0.35rem" }}>
                           <Link href={`/admin/coas`} style={linkStyle}>
-                            View COA
+                            View COAs
                           </Link>
                         </div>
                       )}
@@ -393,7 +390,8 @@ export default function AdminRequestsPage() {
               <div>
                 <div style={label}>Event</div>
                 <div style={value}>
-                  {eventsMap?.[openReq.event_id]?.event_name || "—"} • {eventsMap?.[openReq.event_id]?.event_location || "—"}
+                  {eventsMap?.[openReq.event_id]?.event_name || "—"} •{" "}
+                  {eventsMap?.[openReq.event_id]?.event_location || "—"}
                 </div>
               </div>
 
@@ -405,7 +403,10 @@ export default function AdminRequestsPage() {
               <div>
                 <div style={label}>Event dates</div>
                 <div style={value}>
-                  {fmtDateRange(eventsMap?.[openReq.event_id]?.event_date || null, eventsMap?.[openReq.event_id]?.event_end_date || null)}
+                  {fmtDateRange(
+                    eventsMap?.[openReq.event_id]?.event_date || null,
+                    eventsMap?.[openReq.event_id]?.event_end_date || null
+                  )}
                 </div>
               </div>
 
@@ -472,6 +473,7 @@ export default function AdminRequestsPage() {
   );
 }
 
+// ---- styles (unchanged) ----
 const card: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #eee",
