@@ -1,9 +1,8 @@
 // pages/e/[slug].tsx
-// Public event page (QR landing).
-// - No localhost hardcoding.
-// - Removes the "Link:" debug box.
-// - Fixes the login/signup loop by detecting auth state.
-// - If logged in, shows "Request COA" and routes to /dashboard?event=<slug>
+// Public Event QR landing + Collector COA request form.
+// - If not logged in: shows login/signup (with next=/e/[slug]).
+// - If logged in: shows the full submission form (details + proof image + book image).
+// - No hardcoded localhost.
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
@@ -16,15 +15,29 @@ type EventRow = {
   artist_name: string | null;
   event_name: string | null;
   event_location: string | null;
-  event_date: string | null;
-  event_end_date: string | null;
+  event_date: string | null; // YYYY-MM-DD
+  event_end_date: string | null; // YYYY-MM-DD
   is_active: boolean;
 };
 
 function fmtDateRange(start?: string | null, end?: string | null) {
   if (!start) return "—";
-  if (!end || end === start) return start;
-  return `${start} → ${end}`;
+  const s = new Date(start).toLocaleDateString();
+  if (!end || end === start) return s;
+  const e = new Date(end).toLocaleDateString();
+  return `${s} → ${e}`;
+}
+
+function todayISODate() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function randSuffix() {
+  return Math.random().toString(16).slice(2);
 }
 
 export default function PublicEventPage() {
@@ -32,13 +45,26 @@ export default function PublicEventPage() {
   const slug = typeof router.query.slug === "string" ? router.query.slug : null;
 
   const [eventRow, setEventRow] = useState<EventRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
+  const [eventErr, setEventErr] = useState<string | null>(null);
 
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Auth detection (prevents “log in” loop)
+  // Form fields
+  const [comicTitle, setComicTitle] = useState("");
+  const [issueNumber, setIssueNumber] = useState("");
+  const [witnessName, setWitnessName] = useState("");
+  const [attested, setAttested] = useState(false);
+
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [bookFile, setBookFile] = useState<File | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  // Auth detection
   useEffect(() => {
     let alive = true;
 
@@ -47,7 +73,6 @@ export default function PublicEventPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!alive) return;
       setIsLoggedIn(!!user);
       setAuthLoading(false);
@@ -64,15 +89,15 @@ export default function PublicEventPage() {
     };
   }, []);
 
-  // Load event data
+  // Load event
   useEffect(() => {
     let alive = true;
 
     async function load() {
       if (!slug) return;
 
-      setLoading(true);
-      setErr(null);
+      setLoadingEvent(true);
+      setEventErr(null);
 
       const { data, error } = await supabase
         .from("events")
@@ -82,14 +107,14 @@ export default function PublicEventPage() {
 
       if (!alive) return;
 
-      if (error) {
-        setErr(error.message);
+      if (error || !data) {
         setEventRow(null);
+        setEventErr(error?.message || "Event not found");
       } else {
         setEventRow(data as EventRow);
       }
 
-      setLoading(false);
+      setLoadingEvent(false);
     }
 
     load();
@@ -99,104 +124,242 @@ export default function PublicEventPage() {
     };
   }, [slug]);
 
-  const canSubmit = useMemo(() => {
-    return !!eventRow?.is_active;
+  const submissionsOpen = useMemo(() => {
+    if (!eventRow) return false;
+    if (!eventRow.is_active) return false;
+    if (!eventRow.event_date) return false;
+
+    const start = eventRow.event_date;
+    const end = eventRow.event_end_date || start;
+    const today = todayISODate();
+
+    return today >= start && today <= end;
   }, [eventRow]);
 
-  const nextBackToThisEvent = useMemo(() => {
-    if (!slug) return "";
-    return `/e/${slug}`;
-  }, [slug]);
+  const nextUrl = useMemo(() => (slug ? `/e/${slug}` : "/"), [slug]);
 
-  const requestHref = useMemo(() => {
-    if (!slug) return "/dashboard";
-    return `/dashboard?event=${encodeURIComponent(slug)}`;
-  }, [slug]);
+  async function uploadToBucket(bucket: string, path: string, file: File) {
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
+    if (error) throw new Error(`Upload failed (${bucket}): ${error.message}`);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErrMsg(null);
+    setOkMsg(null);
+
+    if (!eventRow?.id) return setErrMsg("Event not found.");
+    if (!submissionsOpen) return setErrMsg("This event is not accepting submissions right now.");
+
+    if (!isLoggedIn) {
+      router.push(`/login?next=${encodeURIComponent(nextUrl)}`);
+      return;
+    }
+
+    if (!comicTitle.trim()) return setErrMsg("Comic title is required.");
+    if (!witnessName.trim()) return setErrMsg("Witness name is required (type your full name).");
+    if (!attested) return setErrMsg("You must confirm the attestation checkbox.");
+    if (!proofFile) return setErrMsg("Proof image is required.");
+    if (!bookFile) return setErrMsg("Book image is required.");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(nextUrl)}`);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const requestId =
+        (globalThis as any).crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      const proofExt = (proofFile.name.split(".").pop() || "jpg").toLowerCase();
+      const bookExt = (bookFile.name.split(".").pop() || "jpg").toLowerCase();
+      const unique = `${Date.now()}-${randSuffix()}`;
+
+      // Buckets assumed: request-proofs + request-books
+      const proofPath = `${user.id}/${requestId}/proof-${unique}.${proofExt}`;
+      const bookPath = `${user.id}/${requestId}/book-${unique}.${bookExt}`;
+
+      await uploadToBucket("request-proofs", proofPath, proofFile);
+      await uploadToBucket("request-books", bookPath, bookFile);
+
+      const {
+        data: { publicUrl: bookPublicUrl },
+      } = supabase.storage.from("request-books").getPublicUrl(bookPath);
+
+      const { error: insertError } = await supabase.from("coa_requests").insert({
+        id: requestId,
+        event_id: eventRow.id,
+        collector_user_id: user.id,
+
+        comic_title: comicTitle.trim(),
+        issue_number: issueNumber ? issueNumber.trim() : null,
+
+        status: "pending",
+
+        witness_name: witnessName.trim(),
+        attested: true,
+
+        proof_image_path: proofPath,
+        book_image_path: bookPath,
+        book_image_url: bookPublicUrl,
+
+        payment_mode: "disabled",
+        payment_status: "not_required",
+      });
+
+      if (insertError) throw new Error(insertError.message);
+
+      setOkMsg("Request submitted! You can track it in your account.");
+      setComicTitle("");
+      setIssueNumber("");
+      setWitnessName("");
+      setAttested(false);
+      setProofFile(null);
+      setBookFile(null);
+
+      const proofInput = document.getElementById("proofFile") as HTMLInputElement | null;
+      const bookInput = document.getElementById("bookFile") as HTMLInputElement | null;
+      if (proofInput) proofInput.value = "";
+      if (bookInput) bookInput.value = "";
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to submit request.");
+    }
+
+    setSubmitting(false);
+  }
+
+  if (loadingEvent) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>Loading event…</div>
+      </div>
+    );
+  }
+
+  if (eventErr || !eventRow) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <h1 style={{ marginTop: 0 }}>Event not found</h1>
+          <p style={{ color: "#555" }}>{eventErr || "This QR code may be invalid, or the event may not be available."}</p>
+          <Link href="/" style={linkStyle}>
+            Go home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const dateRange = fmtDateRange(eventRow.event_date, eventRow.event_end_date);
+  const attestationText = `I confirm this comic was signed by ${eventRow.artist_name || "the artist"} at ${
+    eventRow.event_name || "this event"
+  } on ${dateRange}.`;
 
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        {loading ? (
-          <>
-            <h1 style={h1}>Loading…</h1>
-            <p style={muted}>Please wait.</p>
-          </>
-        ) : err ? (
-          <>
-            <h1 style={h1}>Event not found</h1>
-            <p style={muted}>{err}</p>
-            <Link href="/" style={linkStyle}>
-              Go home
+        <h1 style={{ marginTop: 0, marginBottom: 6 }}>{eventRow.event_name || "Event"}</h1>
+        <div style={{ fontWeight: 900, color: "#444" }}>{eventRow.artist_name || "Artist"}</div>
+
+        <div style={{ marginTop: 12, color: "#444", lineHeight: 1.55 }}>
+          <div>
+            <strong>Dates:</strong> {dateRange}
+          </div>
+          <div>
+            <strong>Location:</strong> {eventRow.event_location || "—"}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <strong>Status:</strong>{" "}
+            <span style={eventRow.is_active ? badgeActive : badgeInactive}>
+              {eventRow.is_active ? "Active" : "Inactive"}
+            </span>
+          </div>
+        </div>
+
+        {!submissionsOpen ? (
+          <div style={{ ...noticeBox, marginTop: 16 }}>
+            This event is not accepting submissions right now.
+          </div>
+        ) : authLoading ? (
+          <div style={{ ...noticeBox, marginTop: 16 }}>Checking login…</div>
+        ) : !isLoggedIn ? (
+          <div style={{ ...noticeBox, marginTop: 16 }}>
+            Please{" "}
+            <Link href={`/login?next=${encodeURIComponent(nextUrl)}`} style={linkStyle}>
+              log in
+            </Link>{" "}
+            (or{" "}
+            <Link href={`/signup?next=${encodeURIComponent(nextUrl)}`} style={linkStyle}>
+              create an account
             </Link>
-          </>
-        ) : !eventRow ? (
-          <>
-            <h1 style={h1}>Event not found</h1>
-            <p style={muted}>This QR code may be invalid, or the event may not be available.</p>
-            <Link href="/" style={linkStyle}>
-              Go home
-            </Link>
-          </>
+            ) to submit your COA request.
+          </div>
         ) : (
           <>
-            <h1 style={h1}>{eventRow.event_name || "Signing Event"}</h1>
-            <div style={{ fontWeight: 900, color: "#444", marginTop: 6 }}>
-              {eventRow.artist_name || "Artist"}
+            {errMsg ? <div style={errorBox}>{errMsg}</div> : null}
+            {okMsg ? <div style={successBox}>{okMsg}</div> : null}
+
+            <form onSubmit={handleSubmit} style={{ marginTop: 10 }}>
+              <label style={labelStyle}>Comic Title *</label>
+              <input style={inputStyle} value={comicTitle} onChange={(e) => setComicTitle(e.target.value)} />
+
+              <label style={labelStyle}>Issue #</label>
+              <input style={inputStyle} value={issueNumber} onChange={(e) => setIssueNumber(e.target.value)} />
+
+              <label style={labelStyle}>Witness Name (your signature) *</label>
+              <input
+                style={inputStyle}
+                value={witnessName}
+                onChange={(e) => setWitnessName(e.target.value)}
+                placeholder="Type your full name"
+              />
+
+              <div style={{ marginTop: 12 }}>
+                <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontWeight: 900 }}>
+                  <input
+                    type="checkbox"
+                    checked={attested}
+                    onChange={(e) => setAttested(e.target.checked)}
+                    style={{ marginTop: 4 }}
+                  />
+                  <span>{attestationText}</span>
+                </label>
+              </div>
+
+              <label style={labelStyle}>Proof (ticket photo OR photo of signing) *</label>
+              <input
+                id="proofFile"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                style={{ marginBottom: 10 }}
+              />
+
+              <label style={labelStyle}>Book photo (will appear on COA) *</label>
+              <input
+                id="bookFile"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setBookFile(e.target.files?.[0] ?? null)}
+                style={{ marginBottom: 6 }}
+              />
+
+              <button style={primaryBtn} disabled={submitting}>
+                {submitting ? "Submitting…" : "Submit request"}
+              </button>
+            </form>
+
+            <div style={{ marginTop: 12 }}>
+              <Link href="/my/requests" style={linkStyle}>
+                View my requests
+              </Link>
             </div>
-
-            <div style={{ marginTop: 14, color: "#444", lineHeight: 1.55 }}>
-              <div>
-                <strong>Dates:</strong> {fmtDateRange(eventRow.event_date, eventRow.event_end_date)}
-              </div>
-              <div style={{ marginTop: 4 }}>
-                <strong>Location:</strong> {eventRow.event_location || "—"}
-              </div>
-              <div style={{ marginTop: 4 }}>
-                <strong>Status:</strong>{" "}
-                <span style={eventRow.is_active ? badgeActive : badgeInactive}>
-                  {eventRow.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
-            </div>
-
-            {!canSubmit ? (
-              <div style={{ ...noticeBox, marginTop: 16 }}>
-                This event is not accepting submissions right now.
-              </div>
-            ) : authLoading ? (
-              <div style={{ ...noticeBox, marginTop: 16 }}>Checking login…</div>
-            ) : isLoggedIn ? (
-              <div style={{ marginTop: 16 }}>
-                <p style={muted}>You’re logged in. Continue to submit your COA request.</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <button style={primaryBtn} onClick={() => router.push(requestHref)}>
-                    Request COA
-                  </button>
-                  <Link href="/dashboard" style={secondaryLinkBtn}>
-                    Go to dashboard
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginTop: 16 }}>
-                <p style={muted}>To request a COA, you’ll need to log in first (or create an account).</p>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <button
-                    style={primaryBtn}
-                    onClick={() => router.push(`/login?next=${encodeURIComponent(nextBackToThisEvent)}`)}
-                  >
-                    Log in to request COA
-                  </button>
-                  <Link
-                    href={`/signup?next=${encodeURIComponent(nextBackToThisEvent)}`}
-                    style={secondaryLinkBtn}
-                  >
-                    Create account
-                  </Link>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -207,7 +370,7 @@ export default function PublicEventPage() {
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: "#f3f3f3",
-  padding: "2rem",
+  padding: "2rem 1rem",
   display: "flex",
   justifyContent: "center",
   alignItems: "flex-start",
@@ -223,31 +386,37 @@ const cardStyle: React.CSSProperties = {
   boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
 };
 
-const h1: React.CSSProperties = { margin: 0, fontWeight: 900, fontSize: "2rem" };
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontWeight: 900,
+  marginTop: 12,
+  marginBottom: 6,
+};
 
-const muted: React.CSSProperties = { marginTop: 10, color: "#666" };
-
-const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#6a1b9a", textDecoration: "underline" };
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "0.75rem",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  boxSizing: "border-box",
+};
 
 const primaryBtn: React.CSSProperties = {
+  width: "100%",
+  marginTop: 14,
   borderRadius: 12,
   border: "none",
   background: "#1976d2",
   color: "#fff",
-  padding: "0.8rem 1rem",
+  padding: "0.9rem 1rem",
   fontWeight: 900,
   cursor: "pointer",
 };
 
-const secondaryLinkBtn: React.CSSProperties = {
-  display: "inline-block",
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#f7f7f7",
-  padding: "0.8rem 1rem",
+const linkStyle: React.CSSProperties = {
   fontWeight: 900,
+  color: "#1976d2",
   textDecoration: "none",
-  color: "#333",
 };
 
 const noticeBox: React.CSSProperties = {
@@ -257,6 +426,26 @@ const noticeBox: React.CSSProperties = {
   padding: "0.9rem",
   fontWeight: 900,
   color: "#333",
+};
+
+const errorBox: React.CSSProperties = {
+  marginTop: 12,
+  borderRadius: 12,
+  border: "1px solid #ffb3b3",
+  background: "#ffe6e6",
+  padding: "0.9rem",
+  fontWeight: 900,
+  color: "#7a0000",
+};
+
+const successBox: React.CSSProperties = {
+  marginTop: 12,
+  borderRadius: 12,
+  border: "1px solid #b7ebc6",
+  background: "#e9f7ef",
+  padding: "0.9rem",
+  fontWeight: 900,
+  color: "#14532d",
 };
 
 const badgeActive: React.CSSProperties = {
