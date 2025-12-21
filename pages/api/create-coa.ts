@@ -1,59 +1,58 @@
-// @ts-nocheck
+// pages/api/create-coa.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
+import { generateSlug } from "../../lib/generateSlug";
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import { generateSlug } from '../../lib/slugs';
+// This API stays compatible with older admin pages that POST to /api/create-coa.
+// Only comic_title is required. Everything else is optional.
+// Uses service role (supabaseAdmin) so it bypasses RLS safely for server-side creation.
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // These must match your JSON body and your Supabase columns
-  const {
-    comic_title,
-    issue_number,
-    signed_by,
-    signed_date,
-    signed_location,
-    witnessed_by,
-    image_url, // new optional field
-  } = req.body;
-
-  // Basic required fields
-  if (!comic_title || !signed_by || !issue_number) {
-    return res.status(400).json({
-      error: 'comic_title, signed_by, and issue_number are required',
-    });
-  }
-
-  // Generate a unique QR id / slug
-  const qr_id = generateSlug();
-
-  // Insert into the "signatures" table
-  const { data, error } = await supabaseAdmin
-    .from('signatures')
-    .insert({
+  try {
+    const {
       comic_title,
-      issue_number,
-      signed_by,
-      signed_date,
-      signed_location,
-      witnessed_by,
-      image_url, // store image URL if provided
-      qr_id,
-    })
-    .select()
-    .single();
+      issue_number = null,
+      signed_by = null,
+      signed_date = null,
+      signed_location = null,
+      witnessed_by = null,
+    } = req.body ?? {};
 
-  if (error) {
-    console.error('Error inserting COA:', error);
-    return res.status(500).json({ error: error.message });
+    if (!comic_title || typeof comic_title !== "string" || !comic_title.trim()) {
+      return res.status(400).json({
+        error: "comic_title is required",
+      });
+    }
+
+    const qr_id = generateSlug();
+
+    // Insert COA row
+    const { data, error } = await supabaseAdmin
+      .from("signatures")
+      .insert({
+        comic_title: comic_title.trim(),
+        issue_number: issue_number ? String(issue_number).trim() : null,
+        signed_by: signed_by ? String(signed_by).trim() : null,
+        signed_date: signed_date ? String(signed_date).trim() : null,
+        signed_location: signed_location ? String(signed_location).trim() : null,
+        witnessed_by: witnessed_by ? String(witnessed_by).trim() : null,
+        qr_id,
+        status: "active",
+        needs_review: false,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.status(200).json({ coa: data });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Unknown error" });
   }
-
-  // Return the created row (including qr_id)
-  return res.status(200).json(data);
 }

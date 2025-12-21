@@ -1,304 +1,237 @@
+// pages/admin/create-coa.tsx
 // @ts-nocheck
 
-import { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { QRCodeCanvas } from 'qrcode.react';
+import { useState } from "react";
+import AdminLayout from "../../components/AdminLayout";
+import { supabase } from "../../lib/supabaseClient";
+import { QRCodeCanvas } from "qrcode.react";
 
-const BUCKET_NAME = 'coa-images'; // change if your bucket name is different
+const BUCKET_NAME = "coa-images"; // change if your bucket name is different
 
 export default function CreateCOAPage() {
-  const [comicTitle, setComicTitle] = useState('');
-  const [issueNumber, setIssueNumber] = useState('');
-  const [signedBy, setSignedBy] = useState('');
-  const [signedDate, setSignedDate] = useState('');
-  const [signedLocation, setSignedLocation] = useState('');
-  const [witnessedBy, setWitnessedBy] = useState('');
+  const [comicTitle, setComicTitle] = useState("");
+  const [issueNumber, setIssueNumber] = useState("");
+  const [signedBy, setSignedBy] = useState("");
+  const [signedDate, setSignedDate] = useState("");
+  const [signedLocation, setSignedLocation] = useState("");
+  const [witnessedBy, setWitnessedBy] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [createdCoa, setCreatedCoa] = useState<any | null>(null);
+
+  const [created, setCreated] = useState<any>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
     setMessage(null);
     setError(null);
-    setCreatedCoa(null);
-
-    if (!comicTitle || !issueNumber || !signedBy) {
-      setError('comic_title, issue_number, and signed_by are required.');
-      return;
-    }
-
-    if (!file) {
-      setError('Please choose an image file for the COA.');
-      return;
-    }
+    setCreated(null);
 
     try {
-      setSubmitting(true);
-
-      // 1) Upload image to Supabase Storage
-      const ext = file.name.split('.').pop();
-      const filePath = `signatures/${comicTitle.trim().replace(/\s+/g, '-')}-${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error(uploadError);
-        setError('Error uploading file to storage: ' + uploadError.message);
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(filePath);
-
-      const imageUrl = publicUrlData?.publicUrl;
-
-      if (!imageUrl) {
-        setError('Could not get public URL for uploaded image.');
-        setSubmitting(false);
-        return;
-      }
-
-      // 2) Call API to create COA row with all details + image_url
-      const res = await fetch('/api/create-coa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/create-coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           comic_title: comicTitle,
           issue_number: issueNumber,
           signed_by: signedBy,
-          signed_date: signedDate,
-          signed_location: signedLocation,
-          witnessed_by: witnessedBy,
-          image_url: imageUrl,
+          signed_date: signedDate || null,
+          signed_location: signedLocation || null,
+          witnessed_by: witnessedBy || null,
         }),
       });
 
-      const result = await res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Create COA failed");
 
-      if (!res.ok) {
-        console.error(result);
-        setError(result.error || 'Error creating COA.');
-        setSubmitting(false);
-        return;
+      // Optional upload image to Supabase bucket if a file was selected
+      if (file) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${data.qr_id}.${ext}`;
+
+        const { error: upErr } = await supabase.storage.from(BUCKET_NAME).upload(path, file, {
+          upsert: true,
+          contentType: file.type || "image/jpeg",
+        });
+
+        if (upErr) throw new Error(`Image upload failed: ${upErr.message}`);
+
+        const { data: pub } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+        const imageUrl = pub?.publicUrl || null;
+
+        // (Optional) update COA row with image_url if your schema supports it
+        await supabase.from("coas").update({ image_url: imageUrl }).eq("id", data.id);
+        data.image_url = imageUrl;
       }
 
-      setCreatedCoa(result);
-      setMessage('COA created successfully!');
-      // Optionally clear form for next entry:
-      // setComicTitle('');
-      // setIssueNumber('');
-      // setSignedBy('');
-      // setSignedDate('');
-      // setSignedLocation('');
-      // setWitnessedBy('');
-      // setFile(null);
-    } catch (err) {
-      console.error(err);
-      setError('Unexpected error creating COA.');
-    } finally {
-      setSubmitting(false);
+      setCreated(data);
+      setMessage("COA created successfully.");
+
+      setComicTitle("");
+      setIssueNumber("");
+      setSignedBy("");
+      setSignedDate("");
+      setSignedLocation("");
+      setWitnessedBy("");
+      setFile(null);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
     }
+
+    setLoading(false);
   }
 
-  const qrUrl =
-    createdCoa && createdCoa.qr_id
-      ? `${process.env.NEXT_PUBLIC_SITE_URL}/cert/${createdCoa.qr_id}`
-      : '';
+  const certUrl = created?.qr_id ? `http://localhost:3000/cert/${created.qr_id}` : null;
 
   return (
-    <div
-      style={{
-        padding: '2rem',
-        fontFamily: 'Arial, sans-serif',
-        maxWidth: 800,
-        margin: '0 auto',
-      }}
-    >
-      <h1>Create New COA</h1>
-      <p>
-        Fill out the comic details, choose an image, and submit. This will:
-      </p>
-      <ul>
-        <li>Upload the image to Supabase Storage</li>
-        <li>Create a COA row in Supabase</li>
-        <li>Generate a QR ID and link it to the COA</li>
-      </ul>
+    <AdminLayout requireStaff={true}>
+      <h1 style={{ marginTop: 0 }}>Create COA (Legacy Page)</h1>
 
-      <form onSubmit={handleSubmit} style={{ marginTop: '1.5rem' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Comic Title:
-            <input
-              type="text"
-              value={comicTitle}
-              onChange={(e) => setComicTitle(e.target.value)}
-              style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-              placeholder="e.g., Venom"
-            />
-          </label>
-        </div>
+      <div style={{ color: "#666", fontWeight: 800, marginBottom: "1rem" }}>
+        Note: Your primary create page is <code>http://localhost:3000/admin/create</code>. This page is kept for
+        compatibility.
+      </div>
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Issue Number:
-            <input
-              type="text"
-              value={issueNumber}
-              onChange={(e) => setIssueNumber(e.target.value)}
-              style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-              placeholder="e.g., 7"
-            />
-          </label>
-        </div>
+      {message && <div style={okBox}>{message}</div>}
+      {error && <div style={errorBox}>{error}</div>}
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Signed By:
-            <input
-              type="text"
-              value={signedBy}
-              onChange={(e) => setSignedBy(e.target.value)}
-              style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-              placeholder="e.g., Clayton Crain"
-            />
-          </label>
-        </div>
+      <div style={card}>
+        <form onSubmit={handleSubmit}>
+          <label style={label}>Comic Title *</label>
+          <input value={comicTitle} onChange={(e) => setComicTitle(e.target.value)} style={input} />
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Signed Date:
-            <input
-              type="date"
-              value={signedDate}
-              onChange={(e) => setSignedDate(e.target.value)}
-              style={{ display: 'block', padding: '0.5rem', marginTop: '0.25rem' }}
-            />
-          </label>
-        </div>
+          <label style={label}>Issue # *</label>
+          <input value={issueNumber} onChange={(e) => setIssueNumber(e.target.value)} style={input} />
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Signed Location:
-            <input
-              type="text"
-              value={signedLocation}
-              onChange={(e) => setSignedLocation(e.target.value)}
-              style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-              placeholder="e.g., FanExpo Boston"
-            />
-          </label>
-        </div>
+          <label style={label}>Signed By *</label>
+          <input value={signedBy} onChange={(e) => setSignedBy(e.target.value)} style={input} />
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            Witnessed By:
-            <input
-              type="text"
-              value={witnessedBy}
-              onChange={(e) => setWitnessedBy(e.target.value)}
-              style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-              placeholder="e.g., Metaverse Comics"
-            />
-          </label>
-        </div>
+          <label style={label}>Signed Date</label>
+          <input value={signedDate} onChange={(e) => setSignedDate(e.target.value)} style={input} placeholder="YYYY-MM-DD" />
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label>
-            COA Image:
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              style={{ display: 'block', marginTop: '0.25rem' }}
-            />
-          </label>
-        </div>
+          <label style={label}>Signing Location</label>
+          <input value={signedLocation} onChange={(e) => setSignedLocation(e.target.value)} style={input} />
 
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{ padding: '0.5rem 1.5rem', cursor: 'pointer' }}
-        >
-          {submitting ? 'Creating COA...' : 'Create COA'}
-        </button>
-      </form>
+          <label style={label}>Witnessed By</label>
+          <input value={witnessedBy} onChange={(e) => setWitnessedBy(e.target.value)} style={input} />
 
-      {message && (
-        <p style={{ color: 'green', marginTop: '1rem' }}>
-          {message}
-        </p>
-      )}
-      {error && (
-        <p style={{ color: 'red', marginTop: '1rem' }}>
-          {error}
-        </p>
-      )}
+          <label style={label}>Optional Image Upload</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ marginTop: "0.25rem" }}
+          />
 
-      {createdCoa && (
-        <div
-          style={{
-            marginTop: '2rem',
-            borderTop: '1px solid #ccc',
-            paddingTop: '1rem',
-          }}
-        >
-          <h2>COA Created</h2>
+          <button type="submit" disabled={loading} style={primaryBtn}>
+            {loading ? "Working…" : "Create COA"}
+          </button>
+        </form>
 
-          {createdCoa.image_url && (
-            <div style={{ margin: '1rem 0' }}>
-              <img
-                src={createdCoa.image_url}
-                alt={`${createdCoa.comic_title} cover`}
-                style={{
-                  maxWidth: '250px',
-                  borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-                }}
-              />
+        {created && (
+          <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #eee" }}>
+            <div style={{ fontWeight: 900 }}>Created ✅</div>
+
+            <div style={{ marginTop: "0.35rem" }}>
+              <div style={row}>
+                <span style={k}>COA ID:</span> <code>{created.id}</code>
+              </div>
+              <div style={row}>
+                <span style={k}>QR ID:</span> <code>{created.qr_id}</code>
+              </div>
+              {certUrl && (
+                <div style={row}>
+                  <span style={k}>Cert URL:</span>{" "}
+                  <a href={certUrl} target="_blank" rel="noreferrer" style={linkStyle}>
+                    {certUrl}
+                  </a>
+                </div>
+              )}
+              {created.image_url && (
+                <div style={row}>
+                  <span style={k}>Image:</span>{" "}
+                  <a href={created.image_url} target="_blank" rel="noreferrer" style={linkStyle}>
+                    Open
+                  </a>
+                </div>
+              )}
             </div>
-          )}
 
-          <p>
-            <strong>Title:</strong> {createdCoa.comic_title}
-          </p>
-          <p>
-            <strong>Issue #:</strong> {createdCoa.issue_number}
-          </p>
-          <p>
-            <strong>Signed by:</strong> {createdCoa.signed_by}
-          </p>
-          <p>
-            <strong>Signed date:</strong> {createdCoa.signed_date}
-          </p>
-          <p>
-            <strong>Signed location:</strong> {createdCoa.signed_location}
-          </p>
-          <p>
-            <strong>Witnessed by:</strong> {createdCoa.witnessed_by}
-          </p>
-          <p>
-            <strong>QR ID:</strong> {createdCoa.qr_id}
-          </p>
-
-          {qrUrl && (
-            <div style={{ marginTop: '1.5rem' }}>
-              <h3>QR code:</h3>
-              <QRCodeCanvas value={qrUrl} size={200} />
-              <p style={{ marginTop: '0.5rem' }}>
-                This links to: <code>{qrUrl}</code>
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            {certUrl && (
+              <div style={{ marginTop: "1rem" }}>
+                <div style={{ fontWeight: 900, marginBottom: "0.35rem" }}>QR Code</div>
+                <QRCodeCanvas value={certUrl} size={160} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </AdminLayout>
   );
 }
+
+const card: React.CSSProperties = {
+  background: "#fff",
+  padding: "1.25rem",
+  borderRadius: 14,
+  boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+};
+
+const label: React.CSSProperties = {
+  display: "block",
+  fontWeight: 900,
+  marginTop: "0.65rem",
+  marginBottom: "0.35rem",
+};
+
+const input: React.CSSProperties = {
+  width: "100%",
+  padding: "0.75rem",
+  borderRadius: 12,
+  border: "1px solid #ccc",
+  boxSizing: "border-box",
+};
+
+const primaryBtn: React.CSSProperties = {
+  width: "100%",
+  padding: "0.85rem 1rem",
+  marginTop: "1rem",
+  background: "#1976d2",
+  color: "#fff",
+  border: "none",
+  borderRadius: 12,
+  cursor: "pointer",
+  fontWeight: 900,
+};
+
+const okBox: React.CSSProperties = {
+  background: "#e9f7ef",
+  border: "1px solid #b7ebc6",
+  color: "#14532d",
+  padding: "0.75rem",
+  borderRadius: 12,
+  fontWeight: 900,
+  marginBottom: "1rem",
+};
+
+const errorBox: React.CSSProperties = {
+  background: "#ffe6e6",
+  border: "1px solid #ffb3b3",
+  color: "#7a0000",
+  padding: "0.75rem",
+  borderRadius: 12,
+  fontWeight: 900,
+  marginBottom: "1rem",
+};
+
+const linkStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#1976d2",
+  textDecoration: "none",
+};
+
+const row: React.CSSProperties = { marginTop: "0.35rem" };
+const k: React.CSSProperties = { fontWeight: 900, color: "#333" };
