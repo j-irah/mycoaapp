@@ -1,32 +1,56 @@
-// pages/admin/events/qr/[slug].tsx
-// @ts-nocheck
+// pages/admin/events/[slug].tsx
+// Admin QR/Preview page (staff-only)
+// This version removes AdminLayout and uses RequireAuth + AdminNav (Option A).
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../../../components/AdminLayout";
-import { supabase } from "../../../../lib/supabaseClient";
+import RequireAuth from "../../../components/RequireAuth";
+import AdminNav from "../../../components/AdminNav";
+import { supabase } from "../../../lib/supabaseClient";
 import { QRCodeCanvas } from "qrcode.react";
+
+type EventRow = {
+  id: string;
+  slug: string;
+  artist_name: string | null;
+  event_name: string | null;
+  event_location: string | null;
+  event_date: string | null;
+  event_end_date: string | null;
+  is_active: boolean;
+};
+
+function fmtDateRange(start?: string | null, end?: string | null) {
+  if (!start) return "—";
+  if (!end || end === start) return start;
+  return `${start} → ${end}`;
+}
 
 export default function AdminEventQRPage() {
   const router = useRouter();
-  const { slug } = router.query;
+  const slug = typeof router.query.slug === "string" ? router.query.slug : null;
 
-  const [eventRow, setEventRow] = useState<any>(null);
+  const [row, setRow] = useState<EventRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Prefer Vercel/Prod base URL if set; fallback to localhost for local dev.
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
   const eventUrl = useMemo(() => {
-    if (!eventRow?.slug) return "";
-    return `http://localhost:3000/e/${eventRow.slug}`;
-  }, [eventRow]);
+    if (!slug) return null;
+    return `${baseUrl}/e/${slug}`;
+  }, [baseUrl, slug]);
 
   useEffect(() => {
-    let active = true;
+    let alive = true;
 
     async function load() {
       if (!slug) return;
+
       setLoading(true);
-      setError(null);
+      setErr(null);
 
       const { data, error } = await supabase
         .from("events")
@@ -34,124 +58,255 @@ export default function AdminEventQRPage() {
         .eq("slug", slug)
         .single();
 
-      if (!active) return;
+      if (!alive) return;
 
-      if (error || !data) {
-        setEventRow(null);
-        setError(error?.message || "Event not found.");
-        setLoading(false);
-        return;
+      if (error) {
+        setErr(error.message);
+        setRow(null);
+      } else {
+        setRow(data as any);
       }
 
-      setEventRow(data);
       setLoading(false);
     }
 
     load();
+
     return () => {
-      active = false;
+      alive = false;
     };
   }, [slug]);
 
-  function handlePrint() {
-    window.print();
-  }
-
   return (
-    <AdminLayout requireStaff={true}>
-      <style>{`
-        @media print {
-          nav, .no-print { display: none !important; }
-          body { background: white !important; }
-          .print-card { box-shadow: none !important; border: none !important; }
-        }
-      `}</style>
+    <RequireAuth>
+      <div style={pageStyle}>
+        <AdminNav />
 
-      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <h1 style={{ margin: 0 }}>Printable Event QR</h1>
-        <button onClick={handlePrint} style={btn}>
-          Print
-        </button>
-      </div>
-
-      {loading ? <div style={{ marginTop: 16 }}>Loading…</div> : null}
-      {error ? <div style={{ ...box, borderColor: "#ffb3b3", background: "#ffe6e6", color: "#7a0000" }}>{error}</div> : null}
-
-      {!loading && eventRow ? (
-        <div className="print-card" style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div style={{ minWidth: 280 }}>
-              <h2 style={{ marginTop: 0, marginBottom: 6 }}>{eventRow.artist_name || "Artist"}</h2>
-              <div style={{ fontWeight: 900, fontSize: 18 }}>{eventRow.event_name || "Event"}</div>
-              <div style={{ color: "#555", marginTop: 6 }}>{eventRow.event_location || "—"}</div>
-              <div style={{ color: "#555", marginTop: 6 }}>
-                {eventRow.event_date}
-                {eventRow.event_end_date && eventRow.event_end_date !== eventRow.event_date ? ` → ${eventRow.event_end_date}` : ""}
-              </div>
-
-              <div style={{ marginTop: 12, color: "#333" }}>
-                Scan to submit a COA request:
-                <div style={{ marginTop: 6 }}>
-                  <code style={codePill}>{eventUrl}</code>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ textAlign: "center" }}>
-              {eventUrl ? <QRCodeCanvas value={eventUrl} size={260} /> : null}
-              <div style={{ marginTop: 10, fontWeight: 900 }}>SCAN ME</div>
+        <div style={containerStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center" }}>
+            <h1 style={{ margin: 0 }}>Event QR</h1>
+            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+              <button
+                onClick={() => router.push("http://localhost:3000/admin/events")}
+                style={secondaryBtn}
+              >
+                Back to Events
+              </button>
+              <button
+                onClick={() => window.print()}
+                style={primaryBtn}
+                disabled={!eventUrl}
+                title={!eventUrl ? "Waiting for slug…" : "Print"}
+              >
+                Print
+              </button>
             </div>
           </div>
 
-          <hr style={{ margin: "18px 0", border: 0, borderTop: "1px solid #eee" }} />
+          <div style={{ marginTop: "1rem" }}>
+            {loading ? (
+              <div style={cardStyle}>Loading…</div>
+            ) : err ? (
+              <div style={{ ...cardStyle, ...errorBox }}>{err}</div>
+            ) : !row || !eventUrl ? (
+              <div style={cardStyle}>Event not found.</div>
+            ) : (
+              <>
+                {/* Printable section */}
+                <div style={printCardStyle} className="print-area">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "1.25rem" }}>
+                    <div>
+                      <div style={titleStyle}>{row.event_name || "Event"}</div>
+                      <div style={subTitleStyle}>{row.artist_name || "Artist"}</div>
 
-          <div style={{ color: "#555", lineHeight: 1.35 }}>
-            <div style={{ fontWeight: 900, color: "#111" }}>Instructions for collectors</div>
-            <ol style={{ marginTop: 8, paddingLeft: 18 }}>
-              <li>Scan the QR code.</li>
-              <li>Create an account or log in.</li>
-              <li>You’ll be returned to this event page automatically.</li>
-              <li>Upload proof + book photo and submit.</li>
-            </ol>
+                      <div style={{ marginTop: "0.75rem", color: "#444", lineHeight: 1.5 }}>
+                        <div>
+                          <strong>Dates:</strong> {fmtDateRange(row.event_date, row.event_end_date)}
+                        </div>
+                        <div style={{ marginTop: "0.25rem" }}>
+                          <strong>Location:</strong> {row.event_location || "—"}
+                        </div>
+                        <div style={{ marginTop: "0.25rem" }}>
+                          <strong>Status:</strong>{" "}
+                          <span style={row.is_active ? badgeActive : badgeInactive}>
+                            {row.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+
+                        <div style={{ marginTop: "0.85rem" }}>
+                          <div style={{ fontWeight: 900 }}>Collector link</div>
+                          <div style={{ marginTop: "0.35rem" }}>
+                            <code style={codePill}>{eventUrl}</code>
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: "0.85rem", color: "#666", fontSize: "0.95rem" }}>
+                          Place this QR code at the artist table. Collectors scan to open the event page and submit a COA
+                          request.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontWeight: 900, marginBottom: "0.75rem" }}>Scan to Request COA</div>
+                      <div style={qrBox}>
+                        <QRCodeCanvas value={eventUrl} size={280} includeMargin={true} />
+                      </div>
+                      <div style={{ marginTop: "0.65rem", color: "#444", fontWeight: 900 }}>
+                        {row.artist_name || "Artist"} • {row.event_name || "Event"}
+                      </div>
+                      <div style={{ marginTop: "0.25rem", color: "#666" }}>
+                        {fmtDateRange(row.event_date, row.event_end_date)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Non-print helper info */}
+                <div style={{ ...cardStyle, marginTop: "1rem" }}>
+                  <div style={{ fontWeight: 900 }}>Open event page</div>
+                  <div style={{ marginTop: "0.4rem" }}>
+                    <a href={eventUrl} target="_blank" rel="noreferrer" style={linkStyle}>
+                      {eventUrl}
+                    </a>
+                  </div>
+                  <div style={{ marginTop: "0.65rem", color: "#666", fontSize: "0.95rem" }}>
+                    Tip: In Vercel, set <code>NEXT_PUBLIC_SITE_URL</code> to your production domain so the QR points to
+                    production instead of localhost.
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
-      ) : null}
-    </AdminLayout>
+
+        {/* Print CSS */}
+        <style jsx global>{`
+          @media print {
+            body {
+              background: #fff !important;
+            }
+            nav,
+            header,
+            .no-print {
+              display: none !important;
+            }
+            .print-area {
+              box-shadow: none !important;
+              border: none !important;
+            }
+          }
+        `}</style>
+      </div>
+    </RequireAuth>
   );
 }
 
-const btn: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  background: "#1976d2",
-  color: "white",
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f1f1f1",
+  fontFamily: "Arial, sans-serif",
+};
+
+const containerStyle: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: "0 auto",
+  padding: "1.5rem",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  padding: "1.25rem",
+  borderRadius: 14,
+  boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+};
+
+const printCardStyle: React.CSSProperties = {
+  ...cardStyle,
+  padding: "1.4rem",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: "1.7rem",
   fontWeight: 900,
-  border: "none",
-  cursor: "pointer",
 };
 
-const card: React.CSSProperties = {
-  marginTop: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.08)",
+const subTitleStyle: React.CSSProperties = {
+  marginTop: "0.25rem",
+  fontSize: "1.1rem",
+  fontWeight: 900,
+  color: "#555",
+};
+
+const qrBox: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.75rem",
   borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+  border: "1px solid #eee",
+  background: "#fff",
 };
 
-const box: React.CSSProperties = {
-  marginTop: 16,
-  padding: 12,
+const primaryBtn: React.CSSProperties = {
+  padding: "0.65rem 0.95rem",
   borderRadius: 12,
-  border: "1px solid rgba(0,0,0,0.08)",
-  background: "white",
+  border: "none",
+  background: "#1976d2",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 900,
+};
+
+const secondaryBtn: React.CSSProperties = {
+  padding: "0.65rem 0.95rem",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  background: "#f5f5f5",
+  cursor: "pointer",
+  fontWeight: 900,
+};
+
+const errorBox: React.CSSProperties = {
+  background: "#ffe6e6",
+  border: "1px solid #ffb3b3",
+  color: "#7a0000",
+  fontWeight: 900,
+};
+
+const badgeActive: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.2rem 0.55rem",
+  borderRadius: 999,
+  background: "#e9f7ef",
+  border: "1px solid #b7ebc6",
+  color: "#14532d",
+  fontWeight: 900,
+  fontSize: "0.9rem",
+};
+
+const badgeInactive: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.2rem 0.55rem",
+  borderRadius: 999,
+  background: "#f5f5f5",
+  border: "1px solid #ddd",
+  color: "#555",
+  fontWeight: 900,
+  fontSize: "0.9rem",
 };
 
 const codePill: React.CSSProperties = {
   display: "inline-block",
-  padding: "6px 10px",
-  borderRadius: 999,
   background: "#f5f5f5",
-  border: "1px solid #eee",
+  border: "1px solid #ddd",
+  padding: "0.25rem 0.55rem",
+  borderRadius: 10,
   fontWeight: 900,
+  maxWidth: "100%",
+  overflowWrap: "anywhere",
+};
+
+const linkStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#1976d2",
+  textDecoration: "none",
 };
