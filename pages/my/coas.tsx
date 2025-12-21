@@ -1,3 +1,6 @@
+// pages/my/coas.tsx
+// Collector "My COAs" list
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import RequireAuth from "../../components/RequireAuth";
@@ -9,13 +12,13 @@ type CoaStatus = "active" | "revoked";
 type SignatureRow = {
   id: string;
   qr_id: string;
-  comic_title: string;
-  issue_number: string;
+  comic_title: string | null;
+  issue_number: string | null;
   status: CoaStatus;
   created_at: string;
 };
 
-function formatTitleIssue(title: string, issue: string) {
+function formatTitleIssue(title?: string | null, issue?: string | null) {
   const t = (title || "").trim();
   const i = (issue || "").trim();
   if (!t && !i) return "Untitled";
@@ -104,9 +107,7 @@ export default function MyCoasPage() {
         )}
 
         {!loading && rows.length === 0 && !error && (
-          <div style={styles.emptyState}>
-            No COAs issued yet. Once a request is approved, it will appear here.
-          </div>
+          <div style={styles.emptyState}>No COAs issued yet. Once a request is approved, it will appear here.</div>
         )}
 
         {!loading && rows.length > 0 && (

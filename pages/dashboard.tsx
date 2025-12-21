@@ -1,3 +1,6 @@
+// pages/dashboard.tsx
+// Collector Dashboard
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import RequireAuth from "../components/RequireAuth";
@@ -10,21 +13,21 @@ type CoaStatus = "active" | "revoked";
 type CoaRequestRow = {
   id: string;
   status: RequestStatus;
-  comic_title: string;
-  issue_number: string;
+  comic_title: string | null;
+  issue_number: string | null;
   created_at: string;
 };
 
 type SignatureRow = {
   id: string;
   qr_id: string;
-  comic_title: string;
-  issue_number: string;
+  comic_title: string | null;
+  issue_number: string | null;
   status: CoaStatus;
   created_at: string;
 };
 
-function formatTitleIssue(title: string, issue: string) {
+function formatTitleIssue(title?: string | null, issue?: string | null) {
   const t = (title || "").trim();
   const i = (issue || "").trim();
   if (!t && !i) return "Untitled";
@@ -65,18 +68,19 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      const [{ data: reqData, error: reqErr }, { data: coaData, error: coaErr }] = await Promise.all([
-        supabase
-          .from("coa_requests")
-          .select("id,status,comic_title,issue_number,created_at")
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase
-          .from("signatures")
-          .select("id,qr_id,comic_title,issue_number,status,created_at")
-          .order("created_at", { ascending: false })
-          .limit(6),
-      ]);
+      const [{ data: reqData, error: reqErr }, { data: coaData, error: coaErr }] =
+        await Promise.all([
+          supabase
+            .from("coa_requests")
+            .select("id,status,comic_title,issue_number,created_at")
+            .order("created_at", { ascending: false })
+            .limit(8),
+          supabase
+            .from("signatures")
+            .select("id,qr_id,comic_title,issue_number,status,created_at")
+            .order("created_at", { ascending: false })
+            .limit(6),
+        ]);
 
       if (cancelled) return;
 
@@ -96,6 +100,7 @@ export default function DashboardPage() {
     }
 
     load();
+
     return () => {
       cancelled = true;
     };
@@ -195,9 +200,7 @@ export default function DashboardPage() {
               </div>
 
               {coas.length === 0 ? (
-                <div style={styles.emptyState}>
-                  No COAs issued yet. Once a request is approved, it will appear here.
-                </div>
+                <div style={styles.emptyState}>No COAs issued yet. Once a request is approved, it will appear here.</div>
               ) : (
                 <div style={styles.list}>
                   {coas.slice(0, 6).map((c) => (
