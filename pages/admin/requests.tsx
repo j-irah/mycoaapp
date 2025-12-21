@@ -199,11 +199,17 @@ export default function AdminRequestsPage() {
       const created = await res.json();
       if (!res.ok) throw new Error(created?.error || "Failed to create COA");
 
+      // Support BOTH shapes:
+      // - New: { id, qr_id, coa }
+      // - Old: { coa: { id, qr_id, ... } }
+      const coa = created?.coa ?? null;
+      const issuedId = created?.id ?? coa?.id ?? null;
+
       const { error: upErr } = await supabase
         .from("coa_requests")
         .update({
           status: "approved",
-          issued_coa_id: created?.id || null,
+          issued_coa_id: issuedId,
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", req.id);
@@ -337,9 +343,11 @@ export default function AdminRequestsPage() {
                         Open
                       </button>
 
+                      {/* NOTE: This link may still be wrong until we wire issued_coa_id -> signatures.qr_id.
+                          Step 1 is only fixing issued_coa_id being NULL. We’ll fix the link in Step 2. */}
                       {r.issued_coa_id && (
                         <div style={{ marginTop: "0.35rem" }}>
-                          <Link href={`/cert/${generateSlug(r.issued_coa_id)}`} style={linkStyle}>
+                          <Link href={`/admin/coas`} style={linkStyle}>
                             View COA
                           </Link>
                         </div>
@@ -358,99 +366,105 @@ export default function AdminRequestsPage() {
         <div style={modalOverlay} onClick={closeModal}>
           <div style={modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-              <h2 style={{ margin: 0 }}>Request Review</h2>
-              <button onClick={closeModal} style={secondaryBtn}>
+              <h2 style={{ margin: 0 }}>Request details</h2>
+              <button onClick={closeModal} style={secondaryBtnSmall}>
                 Close
               </button>
             </div>
 
-            <div style={{ marginTop: "0.75rem" }}>
-              <div style={row}>
-                <span style={k}>Comic:</span> {openReq.comic_title || "—"} #{openReq.issue_number || "—"}
-              </div>
-
-              <div style={row}>
-                <span style={k}>Collector Email:</span> {profilesMap?.[openReq.collector_user_id]?.email || "—"}
-              </div>
-
-              <div style={row}>
-                <span style={k}>Collector Name:</span> {profilesMap?.[openReq.collector_user_id]?.full_name || "—"}
-              </div>
-
-              <div style={row}>
-                <span style={k}>Attested:</span> {openReq.attested ? "Yes" : "No"}
-              </div>
-
-              <div style={row}>
-                <span style={k}>Witness (name):</span> {openReq.witness_name || "—"}
-              </div>
-            </div>
-
-            {/* Images grid (same sizing) */}
-            <div style={imageGrid}>
+            <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem" }}>
               <div>
-                <div style={{ fontWeight: 900, marginBottom: "0.35rem" }}>Book Photo</div>
-                {openReq.book_image_url ? (
-                  bookLoading ? (
-                    <div>Loading book photo…</div>
-                  ) : bookPhotoUrl ? (
-                    <a href={bookPhotoUrl} target="_blank" rel="noreferrer">
-                      <img src={bookPhotoUrl} alt="Book Photo" style={imagePreview} />
-                    </a>
-                  ) : (
-                    <div style={{ color: "#666" }}>Book photo exists but could not be loaded.</div>
-                  )
-                ) : (
-                  <div style={{ color: "#666" }}>No book photo uploaded.</div>
-                )}
+                <div style={label}>Status</div>
+                <div style={value}>{openReq.status || "pending"}</div>
               </div>
 
               <div>
-                <div style={{ fontWeight: 900, marginBottom: "0.35rem" }}>Proof Submitted</div>
-                {openReq.proof_image_path ? (
-                  proofLoading ? (
-                    <div>Loading proof…</div>
-                  ) : proofSignedUrl ? (
-                    <a href={proofSignedUrl} target="_blank" rel="noreferrer">
-                      <img src={proofSignedUrl} alt="Proof" style={imagePreview} />
-                    </a>
-                  ) : (
-                    <div style={{ color: "#666" }}>Proof exists but could not be loaded.</div>
-                  )
-                ) : (
-                  <div style={{ color: "#666" }}>No proof uploaded.</div>
-                )}
+                <div style={label}>Created</div>
+                <div style={value}>{fmtDateTime(openReq.created_at)}</div>
+              </div>
+
+              <div>
+                <div style={label}>Comic</div>
+                <div style={value}>
+                  {openReq.comic_title || "—"} {openReq.issue_number ? `#${openReq.issue_number}` : ""}
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Event</div>
+                <div style={value}>
+                  {eventsMap?.[openReq.event_id]?.event_name || "—"} • {eventsMap?.[openReq.event_id]?.event_location || "—"}
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Artist</div>
+                <div style={value}>{eventsMap?.[openReq.event_id]?.artist_name || "—"}</div>
+              </div>
+
+              <div>
+                <div style={label}>Event dates</div>
+                <div style={value}>
+                  {fmtDateRange(eventsMap?.[openReq.event_id]?.event_date || null, eventsMap?.[openReq.event_id]?.event_end_date || null)}
+                </div>
+              </div>
+
+              <div>
+                <div style={label}>Attested</div>
+                <div style={value}>{openReq.attested ? "Yes" : "No"}</div>
+              </div>
+
+              <div>
+                <div style={label}>Witness name</div>
+                <div style={value}>{openReq.witness_name || "—"}</div>
               </div>
             </div>
 
-            <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <button disabled={busyId === openReq.id} onClick={() => approveRequest(openReq)} style={approveBtn}>
-                {busyId === openReq.id ? "Working…" : "Approve"}
-              </button>
+            {/* Proof image */}
+            <div style={{ marginTop: "1rem" }}>
+              <div style={label}>Proof image</div>
+              {proofLoading ? (
+                <div style={{ color: "#666" }}>Loading proof…</div>
+              ) : proofSignedUrl ? (
+                <img
+                  src={proofSignedUrl}
+                  alt="Proof"
+                  style={{ width: "100%", borderRadius: 12, border: "1px solid #eee" }}
+                />
+              ) : (
+                <div style={{ color: "#666" }}>—</div>
+              )}
+            </div>
 
+            {/* Book photo */}
+            <div style={{ marginTop: "1rem" }}>
+              <div style={label}>Book photo</div>
+              {bookLoading ? (
+                <div style={{ color: "#666" }}>Loading book photo…</div>
+              ) : bookPhotoUrl ? (
+                <img
+                  src={bookPhotoUrl}
+                  alt="Book"
+                  style={{ width: "100%", borderRadius: 12, border: "1px solid #eee" }}
+                />
+              ) : (
+                <div style={{ color: "#666" }}>—</div>
+              )}
+            </div>
+
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
               <button
+                onClick={() => rejectRequest(openReq, "Rejected")}
                 disabled={busyId === openReq.id}
-                onClick={() => {
-                  const reason = prompt("Rejection reason?") || "Rejected";
-                  rejectRequest(openReq, reason);
-                }}
-                style={rejectBtn}
+                style={dangerBtn}
               >
                 {busyId === openReq.id ? "Working…" : "Reject"}
               </button>
+
+              <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
+                {busyId === openReq.id ? "Working…" : "Approve"}
+              </button>
             </div>
-
-            {openReq.rejection_reason && (
-              <div style={{ marginTop: "0.75rem", color: "#7a0000", fontWeight: 900 }}>
-                Rejection Reason: {openReq.rejection_reason}
-              </div>
-            )}
-
-            {openReq.book_image_url && (
-              <div style={{ marginTop: "0.75rem", color: "#666", fontWeight: 800, fontSize: "0.92rem" }}>
-                Book image stored as: <code>{openReq.book_image_url}</code>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -460,135 +474,117 @@ export default function AdminRequestsPage() {
 
 const card: React.CSSProperties = {
   background: "#fff",
-  padding: "1.25rem",
-  borderRadius: 14,
-  boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+  border: "1px solid #eee",
+  borderRadius: 16,
+  padding: "1rem",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
 };
 
-const th: React.CSSProperties = { textAlign: "left", padding: "0.7rem 0.5rem", fontWeight: 900, color: "#333" };
-const td: React.CSSProperties = { padding: "0.7rem 0.5rem", verticalAlign: "top" };
-
-const badgePending: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.25rem 0.6rem",
-  borderRadius: 999,
-  background: "#fff7e6",
-  border: "1px solid #ffe0a3",
-  color: "#7a4b00",
-  fontWeight: 900,
-};
-
-const badgeApproved: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.25rem 0.6rem",
-  borderRadius: 999,
-  background: "#e9f7ef",
-  border: "1px solid #b7ebc6",
-  color: "#14532d",
-  fontWeight: 900,
-};
-
-const badgeRejected: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.25rem 0.6rem",
-  borderRadius: 999,
-  background: "#ffe6e6",
-  border: "1px solid #ffb3b3",
-  color: "#7a0000",
-  fontWeight: 900,
-};
-
-const errorBox: React.CSSProperties = {
-  background: "#ffe6e6",
-  border: "1px solid #ffb3b3",
-  color: "#7a0000",
+const th: React.CSSProperties = {
+  textAlign: "left",
   padding: "0.75rem",
-  borderRadius: 12,
+  borderBottom: "1px solid #eee",
   fontWeight: 900,
-  marginBottom: "1rem",
+  color: "#333",
+  fontSize: "0.95rem",
+};
+
+const td: React.CSSProperties = {
+  padding: "0.75rem",
+  verticalAlign: "top",
+  color: "#333",
+};
+
+const badgeBase: React.CSSProperties = {
+  display: "inline-block",
+  padding: "0.25rem 0.55rem",
+  borderRadius: 999,
+  fontWeight: 900,
+  fontSize: "0.8rem",
+};
+
+const badgeApproved: React.CSSProperties = { ...badgeBase, background: "#e7f6ea", border: "1px solid #bfe6c7" };
+const badgeRejected: React.CSSProperties = { ...badgeBase, background: "#fde7e7", border: "1px solid #f2bcbc" };
+const badgePending: React.CSSProperties = { ...badgeBase, background: "#f2f2f2", border: "1px solid #ddd" };
+
+const primaryBtn: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid #0b5ed7",
+  background: "#0d6efd",
+  padding: "0.7rem 1rem",
+  fontWeight: 900,
+  color: "#fff",
+  cursor: "pointer",
 };
 
 const primaryBtnSmall: React.CSSProperties = {
-  padding: "0.6rem 0.85rem",
-  background: "#1976d2",
-  color: "#fff",
-  border: "none",
-  borderRadius: 12,
-  cursor: "pointer",
-  fontWeight: 900,
+  ...primaryBtn,
+  padding: "0.45rem 0.7rem",
+  fontSize: "0.9rem",
 };
 
 const secondaryBtn: React.CSSProperties = {
-  padding: "0.6rem 0.9rem",
   borderRadius: 12,
   border: "1px solid #ddd",
-  background: "#f5f5f5",
-  cursor: "pointer",
+  background: "#f7f7f7",
+  padding: "0.6rem 0.9rem",
   fontWeight: 900,
+  cursor: "pointer",
+};
+
+const secondaryBtnSmall: React.CSSProperties = {
+  ...secondaryBtn,
+  padding: "0.45rem 0.7rem",
+  fontSize: "0.9rem",
+};
+
+const dangerBtn: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid #dc3545",
+  background: "#dc3545",
+  padding: "0.7rem 1rem",
+  fontWeight: 900,
+  color: "#fff",
+  cursor: "pointer",
 };
 
 const linkStyle: React.CSSProperties = {
   fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
+  color: "#6a1b9a",
+  textDecoration: "underline",
+};
+
+const errorBox: React.CSSProperties = {
+  background: "#fff0f0",
+  border: "1px solid #ffd0d0",
+  color: "#8a1f1f",
+  borderRadius: 12,
+  padding: "0.75rem 1rem",
+  marginBottom: "1rem",
+  fontWeight: 800,
 };
 
 const modalOverlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.45)",
+  background: "rgba(0,0,0,0.35)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   padding: "1rem",
-  zIndex: 9999,
+  zIndex: 50,
 };
 
 const modalCard: React.CSSProperties = {
-  background: "#fff",
-  width: "min(980px, 96vw)",
-  borderRadius: 14,
-  padding: "1.25rem",
-  boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-};
-
-// Same-size previews (click still opens full image)
-const imageGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  gap: "1rem",
-  marginTop: "1rem",
-};
-
-const imagePreview: React.CSSProperties = {
   width: "100%",
-  maxWidth: 360,
-  height: 360,
-  objectFit: "contain",
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fafafa",
+  maxWidth: 900,
+  background: "#fff",
+  borderRadius: 16,
+  padding: "1rem",
+  boxShadow: "0 2px 18px rgba(0,0,0,0.20)",
+  maxHeight: "85vh",
+  overflow: "auto",
 };
 
-const approveBtn: React.CSSProperties = {
-  padding: "0.7rem 0.95rem",
-  borderRadius: 12,
-  border: "1px solid #b7ebc6",
-  background: "#e9f7ef",
-  color: "#14532d",
-  cursor: "pointer",
-  fontWeight: 900,
-};
-
-const rejectBtn: React.CSSProperties = {
-  padding: "0.7rem 0.95rem",
-  borderRadius: 12,
-  border: "1px solid #ffb3b3",
-  background: "#ffe6e6",
-  color: "#7a0000",
-  cursor: "pointer",
-  fontWeight: 900,
-};
-
-const row: React.CSSProperties = { marginTop: "0.35rem" };
-const k: React.CSSProperties = { fontWeight: 900, color: "#333" };
+const label: React.CSSProperties = { color: "#666", fontWeight: 900, fontSize: "0.85rem" };
+const value: React.CSSProperties = { color: "#222", fontWeight: 900 };

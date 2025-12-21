@@ -1,92 +1,136 @@
 // components/ArtistLayout.tsx
-// @ts-nocheck
+// Layout wrapper for artist pages.
+// Includes top navigation + logout redirecting to current origin.
+// Uses relative routes only.
 
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState } from "react";
-import RequireAuth from "./RequireAuth";
 import { supabase } from "../lib/supabaseClient";
 
-export default function ArtistLayout({ title, children }: { title: string; children: any }) {
-  const router = useRouter();
-  const [loggingOut, setLoggingOut] = useState(false);
+type Props = {
+  children: React.ReactNode;
+  title?: string;
+};
 
-  async function handleLogout() {
-    setLoggingOut(true);
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      router.replace("http://localhost:3000/login");
-      setLoggingOut(false);
-    }
+export default function ArtistLayout({ children, title }: Props) {
+  const router = useRouter();
+
+  async function onLogout() {
+    await supabase.auth.signOut();
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    router.replace(origin ? `${origin}/login` : "/login");
   }
 
+  const items = [
+    { label: "Dashboard", href: "/artist/dashboard" },
+    { label: "My Events", href: "/artist/events" },
+    { label: "Create Event", href: "/artist/events/new" },
+  ];
+
   return (
-    <RequireAuth requireArtist={true}>
-      <div style={page}>
-        <div style={container}>
-          <header style={header}>
-            <div>
-              <div style={{ fontWeight: 900, color: "#334155" }}>Artist Portal</div>
-              <h1 style={{ margin: "6px 0 0 0" }}>{title}</h1>
-            </div>
+    <div style={pageStyle}>
+      <nav style={navStyle}>
+        <div style={navInner}>
+          <Link href="/artist/dashboard" style={brandStyle}>
+            Raw Authentics
+          </Link>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <Link href="http://localhost:3000/artist/dashboard" style={linkBtn}>
-                Dashboard
-              </Link>
+          <div style={navLinks}>
+            {items.map((item) => {
+              const active =
+                router.pathname === item.href ||
+                (item.href !== "/artist/dashboard" && router.asPath.startsWith(item.href));
 
-              <button onClick={handleLogout} disabled={loggingOut} style={logoutBtn}>
-                {loggingOut ? "Logging out…" : "Logout"}
-              </button>
-            </div>
-          </header>
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{ ...navLinkStyle, ...(active ? activeNavLinkStyle : null) }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
 
-          {children}
+          <button onClick={onLogout} style={logoutBtn}>
+            Logout
+          </button>
         </div>
+      </nav>
+
+      <div style={containerStyle}>
+        {title ? <h1 style={h1}>{title}</h1> : null}
+        {children}
       </div>
-    </RequireAuth>
+    </div>
   );
 }
 
-const page: React.CSSProperties = {
+const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #f6f7fb 0%, #eef1f7 100%)",
-  padding: "28px 16px",
-  fontFamily:
-    'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"',
-  color: "#0f172a",
+  background: "#f3f3f3",
+  fontFamily: "Arial, sans-serif",
 };
 
-const container: React.CSSProperties = { maxWidth: 1100, margin: "0 auto" };
+const containerStyle: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: "0 auto",
+  padding: "1.5rem",
+};
 
-const header: React.CSSProperties = {
+const h1: React.CSSProperties = { margin: "0 0 1rem 0", fontWeight: 900 };
+
+const navStyle: React.CSSProperties = {
+  background: "#fff",
+  borderBottom: "1px solid #eaeaea",
+};
+
+const navInner: React.CSSProperties = {
+  maxWidth: 1200,
+  margin: "0 auto",
+  padding: "0.9rem 1.25rem",
   display: "flex",
+  alignItems: "center",
+  gap: "1rem",
   justifyContent: "space-between",
-  gap: 12,
-  alignItems: "flex-start",
-  marginBottom: 16,
 };
 
-const linkBtn: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: 12,
-  background: "white",
-  color: "#0f172a",
+const brandStyle: React.CSSProperties = {
   fontWeight: 900,
   textDecoration: "none",
-  border: "1px solid rgba(15, 23, 42, 0.12)",
+  color: "#111",
+  fontSize: "1.05rem",
+  whiteSpace: "nowrap",
+};
+
+const navLinks: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "1.1rem",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  flex: 1,
+};
+
+const navLinkStyle: React.CSSProperties = {
+  textDecoration: "none",
+  color: "#111",
+  fontWeight: 900,
+  padding: "0.25rem 0.15rem",
+};
+
+const activeNavLinkStyle: React.CSSProperties = {
+  color: "#1976d2",
+  textDecoration: "underline",
+  textUnderlineOffset: 6,
 };
 
 const logoutBtn: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  background: "rgba(15, 23, 42, 0.06)",
-  color: "#0f172a",
+  border: "1px solid #ddd",
+  background: "#f7f7f7",
+  padding: "0.5rem 0.75rem",
+  borderRadius: 10,
   fontWeight: 900,
-  border: "1px solid rgba(15, 23, 42, 0.12)",
   cursor: "pointer",
 };

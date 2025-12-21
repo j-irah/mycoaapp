@@ -1,6 +1,9 @@
 // components/AdminNav.tsx
-// Admin navigation (staff UI).
-// IMPORTANT: Uses relative routes only (no localhost hardcoding).
+// @ts-nocheck
+//
+// Staff admin navigation.
+// - Uses relative routes (no hardcoded localhost).
+// - Logout redirects using window.location.origin.
 
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -14,6 +17,7 @@ type NavItem = {
 const ITEMS: NavItem[] = [
   { label: "Events", href: "/admin/events" },
   { label: "Requests", href: "/admin/requests" },
+  { label: "COAs", href: "/admin/coas" },
   { label: "Create", href: "/admin/create" },
   { label: "Artists", href: "/admin/artists" },
   { label: "Artist Requests", href: "/admin/artist-requests" },
@@ -24,7 +28,8 @@ export default function AdminNav() {
 
   async function onLogout() {
     await supabase.auth.signOut();
-    router.replace("/login");
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    router.replace(origin ? `${origin}/login` : "/login");
   }
 
   return (
@@ -44,10 +49,7 @@ export default function AdminNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                style={{
-                  ...linkStyle,
-                  ...(active ? activeLinkStyle : null),
-                }}
+                style={{ ...linkStyle, ...(active ? activeLinkStyle : null) }}
               >
                 {item.label}
               </Link>

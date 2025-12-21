@@ -6,6 +6,8 @@ import { generateSlug } from "../../lib/generateSlug";
 // This API stays compatible with older admin pages that POST to /api/create-coa.
 // Only comic_title is required. Everything else is optional.
 // Uses service role (supabaseAdmin) so it bypasses RLS safely for server-side creation.
+//
+// IMPORTANT: Response includes top-level `id` + `qr_id` for compatibility with admin pages.
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -20,6 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       signed_date = null,
       signed_location = null,
       witnessed_by = null,
+      // request_id is currently ignored here to avoid schema mismatch risk
+      // request_id = null,
     } = req.body ?? {};
 
     if (!comic_title || typeof comic_title !== "string" || !comic_title.trim()) {
@@ -30,7 +34,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const qr_id = generateSlug();
 
-    // Insert COA row
     const { data, error } = await supabaseAdmin
       .from("signatures")
       .insert({
@@ -51,7 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: error.message });
     }
 
-    return res.status(200).json({ coa: data });
+    // Compatibility response:
+    // - `coa` keeps existing shape
+    // - `id` and `qr_id` allow admin page to store issued_coa_id
+    return res.status(200).json({
+      coa: data,
+      id: data?.id ?? null,
+      qr_id: data?.qr_id ?? null,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Unknown error" });
   }

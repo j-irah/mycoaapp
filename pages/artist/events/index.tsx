@@ -1,7 +1,5 @@
 // pages/artist/events/index.tsx
-// Artist "My Events" page.
-// Lists events where events.artist_user_id = auth.uid() (ownership model).
-// Includes top nav + logout (inlined to avoid component path/casing issues).
+// Artist "My Events" page with inline nav + logout redirect to current origin.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -43,7 +41,6 @@ export default function ArtistEventsIndexPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Load role
   useEffect(() => {
     let alive = true;
 
@@ -101,7 +98,6 @@ export default function ArtistEventsIndexPage() {
     setLoading(false);
   }
 
-  // Load events
   useEffect(() => {
     let alive = true;
 
@@ -116,7 +112,8 @@ export default function ArtistEventsIndexPage() {
 
   async function onLogout() {
     await supabase.auth.signOut();
-    router.replace("/login");
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    router.replace(origin ? `${origin}/login` : "/login");
   }
 
   const navItems = useMemo(
@@ -131,7 +128,6 @@ export default function ArtistEventsIndexPage() {
   return (
     <RequireAuth>
       <div style={pageStyle}>
-        {/* Top Nav (inlined) */}
         <nav style={navStyle}>
           <div style={navInner}>
             <Link href="/artist/dashboard" style={brandStyle}>
@@ -239,24 +235,10 @@ export default function ArtistEventsIndexPage() {
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f3f3f3",
-  fontFamily: "Arial, sans-serif",
-};
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f3f3f3", fontFamily: "Arial, sans-serif" };
+const containerStyle: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "1.5rem" };
 
-const containerStyle: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: "1.5rem",
-};
-
-const topRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "center",
-};
+const topRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" };
 
 const cardStyle: React.CSSProperties = {
   background: "#fff",
@@ -286,11 +268,7 @@ const secondaryLinkBtn: React.CSSProperties = {
   color: "#111",
 };
 
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#1976d2",
-  textDecoration: "none",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#1976d2", textDecoration: "none" };
 
 const errorBox: React.CSSProperties = {
   background: "#ffe6e6",
@@ -331,11 +309,8 @@ const codePill: React.CSSProperties = {
   overflowWrap: "anywhere",
 };
 
-// Nav styles (inlined)
-const navStyle: React.CSSProperties = {
-  background: "#fff",
-  borderBottom: "1px solid #eaeaea",
-};
+// Nav styles
+const navStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #eaeaea" };
 
 const navInner: React.CSSProperties = {
   maxWidth: 1200,
@@ -364,18 +339,9 @@ const navLinks: React.CSSProperties = {
   flex: 1,
 };
 
-const navLinkStyle: React.CSSProperties = {
-  textDecoration: "none",
-  color: "#111",
-  fontWeight: 900,
-  padding: "0.25rem 0.15rem",
-};
+const navLinkStyle: React.CSSProperties = { textDecoration: "none", color: "#111", fontWeight: 900, padding: "0.25rem 0.15rem" };
 
-const activeNavLinkStyle: React.CSSProperties = {
-  color: "#1976d2",
-  textDecoration: "underline",
-  textUnderlineOffset: 6,
-};
+const activeNavLinkStyle: React.CSSProperties = { color: "#1976d2", textDecoration: "underline", textUnderlineOffset: 6 };
 
 const logoutBtn: React.CSSProperties = {
   border: "1px solid #ddd",
