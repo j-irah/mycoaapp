@@ -29,6 +29,8 @@ function looksLikeUrl(v: string) {
 const PROOF_BUCKET = "request-proofs";
 const BOOK_PHOTO_BUCKET = "request-books";
 
+type StatusFilter = "pending" | "approved" | "rejected" | "all";
+
 export default function AdminRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -37,6 +39,10 @@ export default function AdminRequestsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [eventsMap, setEventsMap] = useState<Record<string, any>>({});
   const [profilesMap, setProfilesMap] = useState<Record<string, any>>({});
+
+  // ✅ New: filters
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+  const [query, setQuery] = useState("");
 
   // Modal
   const [openReqId, setOpenReqId] = useState<string | null>(null);
@@ -119,7 +125,6 @@ export default function AdminRequestsPage() {
     const req = rows.find((r) => r.id === reqId);
     if (!req) return;
 
-    // proof
     if (req.proof_image_path) {
       setProofLoading(true);
       const { data, error } = await supabase.storage.from(PROOF_BUCKET).createSignedUrl(req.proof_image_path, 60 * 10);
@@ -127,7 +132,6 @@ export default function AdminRequestsPage() {
       setProofLoading(false);
     }
 
-    // book photo
     if (req.book_image_url) {
       setBookLoading(true);
       if (looksLikeUrl(req.book_image_url)) {
@@ -158,7 +162,7 @@ export default function AdminRequestsPage() {
       const ev = eventsMap?.[req.event_id] || null;
       const profile = profilesMap?.[req.collector_user_id] || null;
 
-      // ✅ FIX: witness should be full name, not email
+      // witness should be full name, not email
       const witnessFullName = (profile?.full_name || req.witness_name || null)?.toString().trim() || null;
 
       const res = await fetch("/api/create-coa", {
@@ -174,7 +178,7 @@ export default function AdminRequestsPage() {
 
           witnessed_by: req.attested ? witnessFullName : null,
 
-          // ✅ Persist cover image on COA
+          // Persist cover image on COA
           book_image_url: req.book_image_url || null,
         }),
       });
@@ -233,16 +237,41 @@ export default function AdminRequestsPage() {
   }
 
   const tableRows = useMemo(() => {
-    return (rows || []).map((r: any) => {
-      const ev = eventsMap?.[r.event_id] || null;
-      const pr = profilesMap?.[r.collector_user_id] || null;
-      return {
-        ...r,
-        _event: ev,
-        _profile: pr,
-      };
-    });
-  }, [rows, eventsMap, profilesMap]);
+    const q = query.trim().toLowerCase();
+
+    return (rows || [])
+      .map((r: any) => {
+        const ev = eventsMap?.[r.event_id] || null;
+        const pr = profilesMap?.[r.collector_user_id] || null;
+        return { ...r, _event: ev, _profile: pr };
+      })
+      .filter((r: any) => {
+        const status = (r.status || "pending").toLowerCase();
+
+        if (statusFilter !== "all" && status !== statusFilter) return false;
+
+        if (!q) return true;
+
+        const ev = r._event;
+        const pr = r._profile;
+
+        const blob = [
+          r.comic_title,
+          r.issue_number,
+          status,
+          pr?.full_name,
+          pr?.email,
+          ev?.event_name,
+          ev?.artist_name,
+          ev?.event_location,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return blob.includes(q);
+      });
+  }, [rows, eventsMap, profilesMap, statusFilter, query]);
 
   return (
     <AdminLayout requireStaff={true}>
@@ -255,11 +284,49 @@ export default function AdminRequestsPage() {
 
       {error && <div style={errorBox}>{error}</div>}
 
+      {/* ✅ Filter bar */}
+      <div style={{ ...card, marginBottom: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "0.75rem", alignItems: "end" }}>
+          <div>
+            <div style={filterLabel}>Status</div>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} style={input}>
+              <option value="pending">Pending (default)</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+
+          <div>
+            <div style={filterLabel}>Search</div>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search comic, collector, event, location…"
+              style={input}
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              setStatusFilter("pending");
+              setQuery("");
+            }}
+            style={secondaryBtn}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
       <div style={card}>
         {loading ? (
           <div>Loading…</div>
         ) : tableRows.length === 0 ? (
-          <div style={{ color: "#666" }}>No requests found.</div>
+          <div style={{ color: "#666" }}>
+            No requests found for this filter.
+            {statusFilter === "pending" ? " (Try Approved or All.)" : ""}
+          </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -283,7 +350,7 @@ export default function AdminRequestsPage() {
                 const eventLabel = ev ? `${ev.event_name || "—"} • ${ev.artist_name || "—"}` : "—";
                 const eventDates = ev ? fmtDateRange(ev.event_date, ev.event_end_date) : "—";
 
-                const status = r.status || "pending";
+                const status = (r.status || "pending").toLowerCase();
                 const badge =
                   status === "approved" ? badgeApproved : status === "rejected" ? badgeRejected : badgePending;
 
@@ -318,9 +385,6 @@ export default function AdminRequestsPage() {
 
                       {r.issued_coa_id ? (
                         <div style={{ marginTop: 8 }}>
-                          <Link href={`/cert/${r.issued_coa_id}`} style={{ display: "none" }}>
-                            {/* unused; keep empty */}
-                          </Link>
                           <Link href="/admin/coas" style={linkStyle}>
                             View COAs
                           </Link>
@@ -355,7 +419,9 @@ export default function AdminRequestsPage() {
               />
               <Info
                 label="Event"
-                value={`${eventsMap?.[openReq.event_id]?.event_name || "—"} • ${eventsMap?.[openReq.event_id]?.event_location || "—"}`}
+                value={`${eventsMap?.[openReq.event_id]?.event_name || "—"} • ${
+                  eventsMap?.[openReq.event_id]?.event_location || "—"
+                }`}
               />
               <Info label="Artist" value={eventsMap?.[openReq.event_id]?.artist_name || "—"} />
               <Info
@@ -392,19 +458,11 @@ export default function AdminRequestsPage() {
             </div>
 
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => rejectRequest(openReq)}
-                disabled={busyId === openReq.id}
-                style={dangerBtn}
-              >
+              <button onClick={() => rejectRequest(openReq)} disabled={busyId === openReq.id} style={dangerBtn}>
                 {busyId === openReq.id ? "Working…" : "Reject"}
               </button>
 
-              <button
-                onClick={() => approveRequest(openReq)}
-                disabled={busyId === openReq.id}
-                style={primaryBtn}
-              >
+              <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
                 {busyId === openReq.id ? "Working…" : "Approve"}
               </button>
             </div>
@@ -433,6 +491,18 @@ const card: React.CSSProperties = {
   boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
 };
 
+const filterLabel: React.CSSProperties = { color: "#666", fontWeight: 900, fontSize: "0.85rem", marginBottom: 6 };
+
+const input: React.CSSProperties = {
+  width: "100%",
+  padding: "0.65rem 0.75rem",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  outline: "none",
+  fontWeight: 800,
+  boxSizing: "border-box",
+};
+
 const th: React.CSSProperties = {
   textAlign: "left",
   padding: "0.75rem",
@@ -442,11 +512,7 @@ const th: React.CSSProperties = {
   fontSize: "0.95rem",
 };
 
-const td: React.CSSProperties = {
-  padding: "0.75rem",
-  verticalAlign: "top",
-  color: "#333",
-};
+const td: React.CSSProperties = { padding: "0.75rem", verticalAlign: "top", color: "#333" };
 
 const badgeBase: React.CSSProperties = {
   display: "inline-block",
@@ -470,11 +536,7 @@ const primaryBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const primaryBtnSmall: React.CSSProperties = {
-  ...primaryBtn,
-  padding: "0.45rem 0.7rem",
-  fontSize: "0.9rem",
-};
+const primaryBtnSmall: React.CSSProperties = { ...primaryBtn, padding: "0.45rem 0.7rem", fontSize: "0.9rem" };
 
 const secondaryBtn: React.CSSProperties = {
   borderRadius: 12,
@@ -485,11 +547,7 @@ const secondaryBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const secondaryBtnSmall: React.CSSProperties = {
-  ...secondaryBtn,
-  padding: "0.45rem 0.7rem",
-  fontSize: "0.9rem",
-};
+const secondaryBtnSmall: React.CSSProperties = { ...secondaryBtn, padding: "0.45rem 0.7rem", fontSize: "0.9rem" };
 
 const dangerBtn: React.CSSProperties = {
   borderRadius: 12,
@@ -501,11 +559,7 @@ const dangerBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const linkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  color: "#6a1b9a",
-  textDecoration: "underline",
-};
+const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#6a1b9a", textDecoration: "underline" };
 
 const errorBox: React.CSSProperties = {
   background: "#fff0f0",
@@ -544,8 +598,4 @@ const infoValue: React.CSSProperties = { color: "#222", fontWeight: 900 };
 
 const modalSectionTitle: React.CSSProperties = { fontWeight: 900, marginBottom: 8, color: "#333" };
 
-const modalImg: React.CSSProperties = {
-  width: "100%",
-  borderRadius: 12,
-  border: "1px solid #eee",
-};
+const modalImg: React.CSSProperties = { width: "100%", borderRadius: 12, border: "1px solid #eee" };
