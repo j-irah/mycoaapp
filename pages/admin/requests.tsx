@@ -39,7 +39,7 @@ export default function AdminRequestsPage() {
   const [eventsMap, setEventsMap] = useState<Record<string, any>>({});
   const [profilesMap, setProfilesMap] = useState<Record<string, any>>({});
 
-  // ✅ signatures existence lookup
+  // signatures existence lookup
   const [sigExists, setSigExists] = useState<Record<string, boolean>>({});
 
   // Filters
@@ -81,11 +81,11 @@ export default function AdminRequestsPage() {
     const reqRows = reqs || [];
     setRows(reqRows);
 
-    // Build signatures existence map for issued_coa_id
+    // signatures existence map for issued_coa_id
     const issuedIds = Array.from(new Set(reqRows.map((r: any) => r.issued_coa_id).filter(Boolean)));
     const existsMap: Record<string, boolean> = {};
     if (issuedIds.length) {
-      const sig = await supabase.from("signatures").select("id").in("id", issuedIds);
+      const sig = await supabase.from("signatures").select("id, qr_id").in("id", issuedIds);
       if (sig.error) {
         setError(sig.error.message);
       } else {
@@ -104,11 +104,8 @@ export default function AdminRequestsPage() {
         .select("id, artist_name, event_name, event_date, event_end_date, event_location")
         .in("id", eventIds);
 
-      if (ev.error) {
-        setError(ev.error.message);
-      } else {
-        for (const e of ev.data || []) evMap[e.id] = e;
-      }
+      if (ev.error) setError(ev.error.message);
+      else for (const e of ev.data || []) evMap[e.id] = e;
     }
     setEventsMap(evMap);
 
@@ -117,11 +114,8 @@ export default function AdminRequestsPage() {
     const prMap: Record<string, any> = {};
     if (userIds.length) {
       const pr = await supabase.from("profiles").select("id, email, full_name, role").in("id", userIds);
-      if (pr.error) {
-        setError(pr.error.message);
-      } else {
-        for (const p of pr.data || []) prMap[p.id] = p;
-      }
+      if (pr.error) setError(pr.error.message);
+      else for (const p of pr.data || []) prMap[p.id] = p;
     }
     setProfilesMap(prMap);
 
@@ -183,11 +177,9 @@ export default function AdminRequestsPage() {
       body: JSON.stringify({
         comic_title: req.comic_title,
         issue_number: req.issue_number,
-
         signed_by: ev?.artist_name || "Unknown",
         signed_date: ev?.event_date || null,
         signed_location: ev?.event_location || null,
-
         witnessed_by: req.attested ? witnessFullName : null,
         book_image_url: req.book_image_url || null,
       }),
@@ -213,6 +205,7 @@ export default function AdminRequestsPage() {
           status: "approved",
           issued_coa_id: issuedId,
           reviewed_at: new Date().toISOString(),
+          rejection_reason: null,
         })
         .eq("id", req.id);
 
@@ -228,9 +221,7 @@ export default function AdminRequestsPage() {
   }
 
   async function reissueCoa(req: any) {
-    const ok = window.confirm(
-      "Re-issue a new COA for this request? This will create a new COA record and relink the request."
-    );
+    const ok = window.confirm("Re-issue a new COA for this request? This will create a new COA record and relink it.");
     if (!ok) return;
 
     setBusyId(req.id);
@@ -286,6 +277,34 @@ export default function AdminRequestsPage() {
     setBusyId(null);
   }
 
+  async function setPending(req: any) {
+    const ok = window.confirm("Set this request back to Pending?");
+    if (!ok) return;
+
+    setBusyId(req.id);
+    setError(null);
+
+    try {
+      const { error: upErr } = await supabase
+        .from("coa_requests")
+        .update({
+          status: "pending",
+          rejection_reason: null,
+          reviewed_at: null,
+        })
+        .eq("id", req.id);
+
+      if (upErr) throw new Error(upErr.message);
+
+      await load();
+      closeModal();
+    } catch (e: any) {
+      setError(e.message || "Update failed");
+    }
+
+    setBusyId(null);
+  }
+
   const tableRows = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -293,6 +312,7 @@ export default function AdminRequestsPage() {
       .map((r: any) => {
         const ev = eventsMap?.[r.event_id] || null;
         const pr = profilesMap?.[r.collector_user_id] || null;
+
         const missingCoa =
           (r.status || "").toLowerCase() === "approved" &&
           r.issued_coa_id &&
@@ -340,7 +360,6 @@ export default function AdminRequestsPage() {
 
       {error && <div style={errorBox}>{error}</div>}
 
-      {/* Filter bar */}
       <div style={{ ...card, marginBottom: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "0.75rem", alignItems: "end" }}>
           <div>
@@ -456,11 +475,11 @@ export default function AdminRequestsPage() {
 
       {/* Modal */}
       {openReq ? (
-        <div style={modalOverlay} onClick={() => setOpenReqId(null)}>
+        <div style={modalOverlay} onClick={closeModal}>
           <div style={modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
               <h2 style={{ margin: 0 }}>Request details</h2>
-              <button onClick={() => setOpenReqId(null)} style={secondaryBtnSmall}>
+              <button onClick={closeModal} style={secondaryBtnSmall}>
                 Close
               </button>
             </div>
@@ -488,6 +507,9 @@ export default function AdminRequestsPage() {
               />
               <Info label="Attested" value={openReq.attested ? "Yes" : "No"} />
               <Info label="Witness name (submitted)" value={openReq.witness_name || "—"} />
+              {openReq.status === "rejected" ? (
+                <Info label="Rejection reason" value={openReq.rejection_reason || "—"} />
+              ) : null}
             </div>
 
             <div style={{ marginTop: "1rem" }}>
@@ -512,21 +534,43 @@ export default function AdminRequestsPage() {
               )}
             </div>
 
-            {/* Actions */}
+            {/* ✅ Status-aware actions */}
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
-              <button onClick={() => rejectRequest(openReq)} disabled={busyId === openReq.id} style={dangerBtn}>
-                {busyId === openReq.id ? "Working…" : "Reject"}
-              </button>
+              {/* Pending */}
+              {(openReq.status || "pending") === "pending" ? (
+                <>
+                  <button onClick={() => rejectRequest(openReq)} disabled={busyId === openReq.id} style={dangerBtn}>
+                    {busyId === openReq.id ? "Working…" : "Reject"}
+                  </button>
+                  <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
+                    {busyId === openReq.id ? "Working…" : "Approve"}
+                  </button>
+                </>
+              ) : null}
 
-              {openReq.status === "approved" && openReq.issued_coa_id && sigExists[openReq.issued_coa_id] === false ? (
-                <button onClick={() => reissueCoa(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
-                  {busyId === openReq.id ? "Working…" : "Re-issue COA"}
-                </button>
-              ) : (
-                <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
-                  {busyId === openReq.id ? "Working…" : "Approve"}
-                </button>
-              )}
+              {/* Approved */}
+              {(openReq.status || "") === "approved" ? (
+                <>
+                  <Link href="/admin/coas" style={linkBtn}>
+                    View COAs
+                  </Link>
+
+                  {openReq.issued_coa_id && sigExists[openReq.issued_coa_id] === false ? (
+                    <button onClick={() => reissueCoa(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
+                      {busyId === openReq.id ? "Working…" : "Re-issue COA"}
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+
+              {/* Rejected */}
+              {(openReq.status || "") === "rejected" ? (
+                <>
+                  <button onClick={() => setPending(openReq)} disabled={busyId === openReq.id} style={secondaryBtn}>
+                    {busyId === openReq.id ? "Working…" : "Set to Pending"}
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -620,6 +664,17 @@ const dangerBtn: React.CSSProperties = {
   fontWeight: 900,
   color: "#fff",
   cursor: "pointer",
+};
+
+const linkBtn: React.CSSProperties = {
+  display: "inline-block",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  background: "#fff",
+  padding: "0.7rem 1rem",
+  fontWeight: 900,
+  color: "#6a1b9a",
+  textDecoration: "none",
 };
 
 const errorBox: React.CSSProperties = {
