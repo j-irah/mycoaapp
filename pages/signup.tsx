@@ -1,4 +1,5 @@
 // pages/signup.tsx
+// Signup (collectors by default). Optional request for partner access.
 // NOTE: all navigation is relative.
 
 import { useMemo, useState } from "react";
@@ -22,7 +23,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [pw1, setPw1] = useState("");
   const [pw2, setPw2] = useState("");
-  const [requestArtist, setRequestArtist] = useState(false);
+  const [requestPartner, setRequestPartner] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -45,7 +46,8 @@ export default function SignupPage() {
       email,
       password: pw1,
       options: {
-        data: { full_name: fullName, request_artist: requestArtist },
+        // ✅ Updated metadata key
+        data: { full_name: fullName, request_partner: requestPartner },
       },
     });
 
@@ -88,8 +90,8 @@ export default function SignupPage() {
           <input style={inputStyle} value={pw2} onChange={(e) => setPw2(e.target.value)} type="password" required />
 
           <label style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "center" }}>
-            <input type="checkbox" checked={requestArtist} onChange={(e) => setRequestArtist(e.target.checked)} />
-            <span style={{ fontWeight: 900 }}>Request artist account</span>
+            <input type="checkbox" checked={requestPartner} onChange={(e) => setRequestPartner(e.target.checked)} />
+            <span style={{ fontWeight: 900 }}>Request partner account</span>
           </label>
 
           <button style={primaryBtn} disabled={loading}>
@@ -133,6 +135,7 @@ const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, mar
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
+  boxSizing: "border-box",
   marginTop: 6,
   borderRadius: 12,
   border: "1px solid #ddd",

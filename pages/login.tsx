@@ -10,10 +10,10 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-type StaffRole = "owner" | "admin" | "reviewer";
+type StaffRole = "owner" | "admin" | "reviewer" | "staff";
 type Role = StaffRole | "artist" | null;
 
-const STAFF_ROLES: StaffRole[] = ["owner", "admin", "reviewer"];
+const STAFF_ROLES: StaffRole[] = ["owner", "admin", "reviewer", "staff"];
 
 function safeNext(input: unknown) {
   const s = typeof input === "string" ? input : "";
@@ -182,6 +182,7 @@ const labelStyle: React.CSSProperties = { display: "block", fontWeight: 900, mar
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
+  boxSizing: "border-box", // ✅ fixes overflow
   marginTop: 6,
   borderRadius: 12,
   border: "1px solid #ddd",
