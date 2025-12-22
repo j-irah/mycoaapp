@@ -25,7 +25,6 @@ function looksLikeUrl(v: string) {
   return /^https?:\/\//i.test(v);
 }
 
-// Buckets
 const PROOF_BUCKET = "request-proofs";
 const BOOK_PHOTO_BUCKET = "request-books";
 
@@ -40,7 +39,10 @@ export default function AdminRequestsPage() {
   const [eventsMap, setEventsMap] = useState<Record<string, any>>({});
   const [profilesMap, setProfilesMap] = useState<Record<string, any>>({});
 
-  // ✅ New: filters
+  // ✅ signatures existence lookup
+  const [sigExists, setSigExists] = useState<Record<string, boolean>>({});
+
+  // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [query, setQuery] = useState("");
 
@@ -71,12 +73,27 @@ export default function AdminRequestsPage() {
       setRows([]);
       setEventsMap({});
       setProfilesMap({});
+      setSigExists({});
       setLoading(false);
       return;
     }
 
     const reqRows = reqs || [];
     setRows(reqRows);
+
+    // Build signatures existence map for issued_coa_id
+    const issuedIds = Array.from(new Set(reqRows.map((r: any) => r.issued_coa_id).filter(Boolean)));
+    const existsMap: Record<string, boolean> = {};
+    if (issuedIds.length) {
+      const sig = await supabase.from("signatures").select("id").in("id", issuedIds);
+      if (sig.error) {
+        setError(sig.error.message);
+      } else {
+        const found = new Set((sig.data || []).map((s: any) => s.id));
+        for (const id of issuedIds) existsMap[id] = found.has(id);
+      }
+    }
+    setSigExists(existsMap);
 
     // Events
     const eventIds = Array.from(new Set(reqRows.map((r: any) => r.event_id).filter(Boolean)));
@@ -95,7 +112,7 @@ export default function AdminRequestsPage() {
     }
     setEventsMap(evMap);
 
-    // Profiles (collector)
+    // Profiles
     const userIds = Array.from(new Set(reqRows.map((r: any) => r.collector_user_id).filter(Boolean)));
     const prMap: Record<string, any> = {};
     if (userIds.length) {
@@ -154,40 +171,41 @@ export default function AdminRequestsPage() {
     setBookLoading(false);
   }
 
+  async function createCoaFromRequest(req: any) {
+    const ev = eventsMap?.[req.event_id] || null;
+    const profile = profilesMap?.[req.collector_user_id] || null;
+
+    const witnessFullName = (profile?.full_name || req.witness_name || null)?.toString().trim() || null;
+
+    const res = await fetch("/api/create-coa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        comic_title: req.comic_title,
+        issue_number: req.issue_number,
+
+        signed_by: ev?.artist_name || "Unknown",
+        signed_date: ev?.event_date || null,
+        signed_location: ev?.event_location || null,
+
+        witnessed_by: req.attested ? witnessFullName : null,
+        book_image_url: req.book_image_url || null,
+      }),
+    });
+
+    const created = await res.json();
+    if (!res.ok) throw new Error(created?.error || "Failed to create COA");
+    const issuedId = created?.id ?? created?.coa?.id ?? null;
+    if (!issuedId) throw new Error("COA created but no id returned");
+    return issuedId;
+  }
+
   async function approveRequest(req: any) {
     setBusyId(req.id);
     setError(null);
 
     try {
-      const ev = eventsMap?.[req.event_id] || null;
-      const profile = profilesMap?.[req.collector_user_id] || null;
-
-      // witness should be full name, not email
-      const witnessFullName = (profile?.full_name || req.witness_name || null)?.toString().trim() || null;
-
-      const res = await fetch("/api/create-coa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          comic_title: req.comic_title,
-          issue_number: req.issue_number,
-
-          signed_by: ev?.artist_name || "Unknown",
-          signed_date: ev?.event_date || null,
-          signed_location: ev?.event_location || null,
-
-          witnessed_by: req.attested ? witnessFullName : null,
-
-          // Persist cover image on COA
-          book_image_url: req.book_image_url || null,
-        }),
-      });
-
-      const created = await res.json();
-      if (!res.ok) throw new Error(created?.error || "Failed to create COA");
-
-      const issuedId = created?.id ?? created?.coa?.id ?? null;
-      if (!issuedId) throw new Error("COA created but no id returned");
+      const issuedId = await createCoaFromRequest(req);
 
       const { error: upErr } = await supabase
         .from("coa_requests")
@@ -204,6 +222,38 @@ export default function AdminRequestsPage() {
       closeModal();
     } catch (e: any) {
       setError(e.message || "Approve failed");
+    }
+
+    setBusyId(null);
+  }
+
+  async function reissueCoa(req: any) {
+    const ok = window.confirm(
+      "Re-issue a new COA for this request? This will create a new COA record and relink the request."
+    );
+    if (!ok) return;
+
+    setBusyId(req.id);
+    setError(null);
+
+    try {
+      const issuedId = await createCoaFromRequest(req);
+
+      const { error: upErr } = await supabase
+        .from("coa_requests")
+        .update({
+          status: "approved",
+          issued_coa_id: issuedId,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", req.id);
+
+      if (upErr) throw new Error(upErr.message);
+
+      await load();
+      closeModal();
+    } catch (e: any) {
+      setError(e.message || "Re-issue failed");
     }
 
     setBusyId(null);
@@ -243,7 +293,12 @@ export default function AdminRequestsPage() {
       .map((r: any) => {
         const ev = eventsMap?.[r.event_id] || null;
         const pr = profilesMap?.[r.collector_user_id] || null;
-        return { ...r, _event: ev, _profile: pr };
+        const missingCoa =
+          (r.status || "").toLowerCase() === "approved" &&
+          r.issued_coa_id &&
+          sigExists[r.issued_coa_id] === false;
+
+        return { ...r, _event: ev, _profile: pr, _missingCoa: missingCoa };
       })
       .filter((r: any) => {
         const status = (r.status || "pending").toLowerCase();
@@ -264,6 +319,7 @@ export default function AdminRequestsPage() {
           ev?.event_name,
           ev?.artist_name,
           ev?.event_location,
+          r._missingCoa ? "coa missing deleted" : "",
         ]
           .filter(Boolean)
           .join(" ")
@@ -271,7 +327,7 @@ export default function AdminRequestsPage() {
 
         return blob.includes(q);
       });
-  }, [rows, eventsMap, profilesMap, statusFilter, query]);
+  }, [rows, eventsMap, profilesMap, statusFilter, query, sigExists]);
 
   return (
     <AdminLayout requireStaff={true}>
@@ -284,7 +340,7 @@ export default function AdminRequestsPage() {
 
       {error && <div style={errorBox}>{error}</div>}
 
-      {/* ✅ Filter bar */}
+      {/* Filter bar */}
       <div style={{ ...card, marginBottom: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "0.75rem", alignItems: "end" }}>
           <div>
@@ -323,10 +379,7 @@ export default function AdminRequestsPage() {
         {loading ? (
           <div>Loading…</div>
         ) : tableRows.length === 0 ? (
-          <div style={{ color: "#666" }}>
-            No requests found for this filter.
-            {statusFilter === "pending" ? " (Try Approved or All.)" : ""}
-          </div>
+          <div style={{ color: "#666" }}>No requests found for this filter.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -351,13 +404,19 @@ export default function AdminRequestsPage() {
                 const eventDates = ev ? fmtDateRange(ev.event_date, ev.event_end_date) : "—";
 
                 const status = (r.status || "pending").toLowerCase();
-                const badge =
-                  status === "approved" ? badgeApproved : status === "rejected" ? badgeRejected : badgePending;
+
+                let badge = status === "approved" ? badgeApproved : status === "rejected" ? badgeRejected : badgePending;
+                let badgeText = status;
+
+                if (r._missingCoa) {
+                  badge = badgeMissing;
+                  badgeText = "approved (COA missing)";
+                }
 
                 return (
                   <tr key={r.id} style={{ borderTop: "1px solid #eee" }}>
                     <td style={td}>
-                      <span style={badge}>{status}</span>
+                      <span style={badge}>{badgeText}</span>
                     </td>
 
                     <td style={td}>
@@ -383,12 +442,8 @@ export default function AdminRequestsPage() {
                         Open
                       </button>
 
-                      {r.issued_coa_id ? (
-                        <div style={{ marginTop: 8 }}>
-                          <Link href="/admin/coas" style={linkStyle}>
-                            View COAs
-                          </Link>
-                        </div>
+                      {r._missingCoa ? (
+                        <div style={{ marginTop: 8, color: "#a15c00", fontWeight: 900 }}>COA missing</div>
                       ) : null}
                     </td>
                   </tr>
@@ -401,11 +456,11 @@ export default function AdminRequestsPage() {
 
       {/* Modal */}
       {openReq ? (
-        <div style={modalOverlay} onClick={closeModal}>
+        <div style={modalOverlay} onClick={() => setOpenReqId(null)}>
           <div style={modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
               <h2 style={{ margin: 0 }}>Request details</h2>
-              <button onClick={closeModal} style={secondaryBtnSmall}>
+              <button onClick={() => setOpenReqId(null)} style={secondaryBtnSmall}>
                 Close
               </button>
             </div>
@@ -457,14 +512,21 @@ export default function AdminRequestsPage() {
               )}
             </div>
 
+            {/* Actions */}
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
               <button onClick={() => rejectRequest(openReq)} disabled={busyId === openReq.id} style={dangerBtn}>
                 {busyId === openReq.id ? "Working…" : "Reject"}
               </button>
 
-              <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
-                {busyId === openReq.id ? "Working…" : "Approve"}
-              </button>
+              {openReq.status === "approved" && openReq.issued_coa_id && sigExists[openReq.issued_coa_id] === false ? (
+                <button onClick={() => reissueCoa(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
+                  {busyId === openReq.id ? "Working…" : "Re-issue COA"}
+                </button>
+              ) : (
+                <button onClick={() => approveRequest(openReq)} disabled={busyId === openReq.id} style={primaryBtn}>
+                  {busyId === openReq.id ? "Working…" : "Approve"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -525,6 +587,7 @@ const badgeBase: React.CSSProperties = {
 const badgeApproved: React.CSSProperties = { ...badgeBase, background: "#e7f6ea", border: "1px solid #bfe6c7" };
 const badgeRejected: React.CSSProperties = { ...badgeBase, background: "#fde7e7", border: "1px solid #f2bcbc" };
 const badgePending: React.CSSProperties = { ...badgeBase, background: "#f2f2f2", border: "1px solid #ddd" };
+const badgeMissing: React.CSSProperties = { ...badgeBase, background: "#fff3cd", border: "1px solid #ffe69c" };
 
 const primaryBtn: React.CSSProperties = {
   borderRadius: 12,
@@ -558,8 +621,6 @@ const dangerBtn: React.CSSProperties = {
   color: "#fff",
   cursor: "pointer",
 };
-
-const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#6a1b9a", textDecoration: "underline" };
 
 const errorBox: React.CSSProperties = {
   background: "#fff0f0",
