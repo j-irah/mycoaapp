@@ -1,9 +1,6 @@
 // components/AdminNav.tsx
-// @ts-nocheck
-//
-// Staff admin navigation.
-// - Uses relative routes (no hardcoded localhost).
-// - Logout redirects using window.location.origin.
+// Admin navigation (staff UI) - relative routes only.
+// Logout redirects to the current site origin (no localhost hardcoding).
 
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -16,11 +13,11 @@ type NavItem = {
 
 const ITEMS: NavItem[] = [
   { label: "Events", href: "/admin/events" },
-  { label: "Requests", href: "/admin/requests" },
+  { label: "COA Requests", href: "/admin/requests" },
   { label: "COAs", href: "/admin/coas" },
-  { label: "Create", href: "/admin/create" },
-  { label: "Artists", href: "/admin/artists" },
-  { label: "Artist Requests", href: "/admin/artist-requests" },
+  { label: "Issue COA", href: "/admin/create" },
+  { label: "Users & Roles", href: "/admin/artists" },
+  { label: "Access Requests", href: "/admin/artist-requests" },
 ];
 
 export default function AdminNav() {

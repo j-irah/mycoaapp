@@ -1,6 +1,6 @@
 // pages/artist/dashboard.tsx
 // Artist dashboard (requires role === 'artist').
-// NAV is inlined here. Logout returns to current site origin.
+// Uses inline nav and logout redirecting to current origin.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -122,8 +122,17 @@ export default function ArtistDashboardPage() {
   );
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f3f3f3", fontFamily: "Arial, sans-serif" };
-const containerStyle: React.CSSProperties = { maxWidth: 900, margin: "0 auto", padding: "1.5rem" };
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f3f3f3",
+  fontFamily: "Arial, sans-serif",
+};
+
+const containerStyle: React.CSSProperties = {
+  maxWidth: 900,
+  margin: "0 auto",
+  padding: "1.5rem",
+};
 
 const cardStyle: React.CSSProperties = {
   background: "#fff",
@@ -144,10 +153,17 @@ const tileStyle: React.CSSProperties = {
   color: "#111",
 };
 
-const linkStyle: React.CSSProperties = { fontWeight: 900, color: "#1976d2", textDecoration: "none" };
+const linkStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#1976d2",
+  textDecoration: "none",
+};
 
 // Nav styles
-const navStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #eaeaea" };
+const navStyle: React.CSSProperties = {
+  background: "#fff",
+  borderBottom: "1px solid #eaeaea",
+};
 
 const navInner: React.CSSProperties = {
   maxWidth: 1200,
@@ -176,9 +192,18 @@ const navLinks: React.CSSProperties = {
   flex: 1,
 };
 
-const navLinkStyle: React.CSSProperties = { textDecoration: "none", color: "#111", fontWeight: 900, padding: "0.25rem 0.15rem" };
+const navLinkStyle: React.CSSProperties = {
+  textDecoration: "none",
+  color: "#111",
+  fontWeight: 900,
+  padding: "0.25rem 0.15rem",
+};
 
-const activeNavLinkStyle: React.CSSProperties = { color: "#1976d2", textDecoration: "underline", textUnderlineOffset: 6 };
+const activeNavLinkStyle: React.CSSProperties = {
+  color: "#1976d2",
+  textDecoration: "underline",
+  textUnderlineOffset: 6,
+};
 
 const logoutBtn: React.CSSProperties = {
   border: "1px solid #ddd",
