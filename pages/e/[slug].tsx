@@ -1,7 +1,8 @@
 // pages/e/[slug].tsx
 // Public Event QR landing + Collector COA request form.
 // - If not logged in: shows login/signup (with next=/e/[slug]).
-// - If logged in: shows the full submission form (details + proof image + book image).
+// - If logged in AND role is allowed: shows the submission form.
+// - If logged in but role is NOT allowed (ex: artist): blocks submission + shows sign-out option.
 // - No hardcoded localhost.
 
 import { useRouter } from "next/router";
@@ -18,6 +19,13 @@ type EventRow = {
   event_date: string | null; // YYYY-MM-DD
   event_end_date: string | null; // YYYY-MM-DD
   is_active: boolean;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  email: string | null;
 };
 
 function fmtDateRange(start?: string | null, end?: string | null) {
@@ -40,6 +48,8 @@ function randSuffix() {
   return Math.random().toString(16).slice(2);
 }
 
+const ALLOWED_SUBMIT_ROLES = ["collector", "partner", "owner", "admin", "reviewer"];
+
 export default function PublicEventPage() {
   const router = useRouter();
   const slug = typeof router.query.slug === "string" ? router.query.slug : null;
@@ -49,7 +59,9 @@ export default function PublicEventPage() {
   const [eventErr, setEventErr] = useState<string | null>(null);
 
   const [authLoading, setAuthLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
 
   // Form fields
   const [comicTitle, setComicTitle] = useState("");
@@ -64,22 +76,56 @@ export default function PublicEventPage() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  // Auth detection
+  const nextUrl = useMemo(() => (slug ? `/e/${slug}` : "/"), [slug]);
+
+  const isLoggedIn = !!userId;
+
+  const role = (profile?.role || "").toLowerCase();
+  const canSubmit = isLoggedIn && (!!role ? ALLOWED_SUBMIT_ROLES.includes(role) : true); // if role missing, allow but warn
+  const isBlockedRole = isLoggedIn && !!role && !ALLOWED_SUBMIT_ROLES.includes(role);
+
+  // Auth detection + profile
   useEffect(() => {
     let alive = true;
 
-    (async () => {
+    async function loadAuth() {
       setAuthLoading(true);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!alive) return;
-      setIsLoggedIn(!!user);
-      setAuthLoading(false);
-    })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user);
+      if (!alive) return;
+
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? null);
+
+      if (user?.id) {
+        const { data: p } = await supabase.from("profiles").select("id, full_name, role, email").eq("id", user.id).maybeSingle();
+        if (!alive) return;
+        setProfile((p as any) || null);
+      } else {
+        setProfile(null);
+      }
+
+      setAuthLoading(false);
+    }
+
+    loadAuth();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUserId(u?.id ?? null);
+      setUserEmail(u?.email ?? null);
+
+      if (u?.id) {
+        const { data: p } = await supabase.from("profiles").select("id, full_name, role, email").eq("id", u.id).maybeSingle();
+        if (!alive) return;
+        setProfile((p as any) || null);
+      } else {
+        setProfile(null);
+      }
+
       setAuthLoading(false);
     });
 
@@ -136,11 +182,14 @@ export default function PublicEventPage() {
     return today >= start && today <= end;
   }, [eventRow]);
 
-  const nextUrl = useMemo(() => (slug ? `/e/${slug}` : "/"), [slug]);
-
   async function uploadToBucket(bucket: string, path: string, file: File) {
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
     if (error) throw new Error(`Upload failed (${bucket}): ${error.message}`);
+  }
+
+  async function signOutAndReload() {
+    await supabase.auth.signOut();
+    router.replace(nextUrl);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -153,6 +202,12 @@ export default function PublicEventPage() {
 
     if (!isLoggedIn) {
       router.push(`/login?next=${encodeURIComponent(nextUrl)}`);
+      return;
+    }
+
+    // ✅ hard block if logged in as an artist (or any disallowed role)
+    if (isBlockedRole) {
+      setErrMsg("This account type cannot submit collector COA requests. Please sign out and create/login as a Collector.");
       return;
     }
 
@@ -181,7 +236,6 @@ export default function PublicEventPage() {
       const bookExt = (bookFile.name.split(".").pop() || "jpg").toLowerCase();
       const unique = `${Date.now()}-${randSuffix()}`;
 
-      // Buckets assumed: request-proofs + request-books
       const proofPath = `${user.id}/${requestId}/proof-${unique}.${proofExt}`;
       const bookPath = `${user.id}/${requestId}/book-${unique}.${bookExt}`;
 
@@ -282,10 +336,23 @@ export default function PublicEventPage() {
           </div>
         </div>
 
-        {!submissionsOpen ? (
+        {/* ✅ session banner to avoid confusion */}
+        {!authLoading && isLoggedIn ? (
           <div style={{ ...noticeBox, marginTop: 16 }}>
-            This event is not accepting submissions right now.
+            <div style={{ fontWeight: 900 }}>
+              Signed in as: {profile?.full_name ? `${profile.full_name} — ` : ""}
+              {userEmail || "account"} {role ? `(role: ${role})` : ""}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button onClick={signOutAndReload} style={secondaryBtn}>
+                Sign out / Switch account
+              </button>
+            </div>
           </div>
+        ) : null}
+
+        {!submissionsOpen ? (
+          <div style={{ ...noticeBox, marginTop: 16 }}>This event is not accepting submissions right now.</div>
         ) : authLoading ? (
           <div style={{ ...noticeBox, marginTop: 16 }}>Checking login…</div>
         ) : !isLoggedIn ? (
@@ -299,6 +366,13 @@ export default function PublicEventPage() {
               create an account
             </Link>
             ) to submit your COA request.
+          </div>
+        ) : isBlockedRole ? (
+          <div style={{ ...errorBox, marginTop: 16 }}>
+            This account type cannot submit collector COA requests.
+            <div style={{ marginTop: 8 }}>
+              Please click <strong>Sign out / Switch account</strong> above and log in as a Collector.
+            </div>
           </div>
         ) : (
           <>
@@ -409,6 +483,15 @@ const primaryBtn: React.CSSProperties = {
   background: "#1976d2",
   color: "#fff",
   padding: "0.9rem 1rem",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const secondaryBtn: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  background: "#f7f7f7",
+  padding: "0.55rem 0.85rem",
   fontWeight: 900,
   cursor: "pointer",
 };
