@@ -1,9 +1,14 @@
 // pages/admin/create.tsx
 // Issue a COA manually (staff-only via AdminLayout).
-// This is separate from collector requests and is used by owner/staff when needed.
+// Now supports uploading a book cover image that appears on the COA.
 
 import { useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
+import { supabase } from "../../lib/supabaseClient";
+
+function randSuffix() {
+  return Math.random().toString(16).slice(2);
+}
 
 export default function AdminCreateCOAPage() {
   const [comicTitle, setComicTitle] = useState("");
@@ -13,10 +18,33 @@ export default function AdminCreateCOAPage() {
   const [signingLocation, setSigningLocation] = useState("");
   const [witnessedBy, setWitnessedBy] = useState("");
 
+  const [bookFile, setBookFile] = useState<File | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [createdQrId, setCreatedQrId] = useState<string | null>(null);
+
+  async function uploadBookImage(file: File) {
+    // store under request-books so the cert page can use the same pattern
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not logged in.");
+
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `manual/${user.id}/${Date.now()}-${randSuffix()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage.from("request-books").upload(path, file, { upsert: false });
+    if (upErr) throw new Error(`Book image upload failed: ${upErr.message}`);
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("request-books").getPublicUrl(path);
+
+    if (!publicUrl) throw new Error("Could not get public URL for uploaded book image.");
+    return publicUrl;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +59,12 @@ export default function AdminCreateCOAPage() {
     setBusy(true);
 
     try {
+      let bookImageUrl: string | null = null;
+
+      if (bookFile) {
+        bookImageUrl = await uploadBookImage(bookFile);
+      }
+
       const res = await fetch("/api/create-coa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,6 +75,7 @@ export default function AdminCreateCOAPage() {
           signed_date: signedDate ? signedDate.trim() : null,
           signed_location: signingLocation ? signingLocation.trim() : null,
           witnessed_by: witnessedBy ? witnessedBy.trim() : null,
+          book_image_url: bookImageUrl, // ✅ now included
         }),
       });
 
@@ -54,13 +89,17 @@ export default function AdminCreateCOAPage() {
       setCreatedQrId(qr);
       setSuccess("COA issued successfully.");
 
-      // reset form (keep Signed By/Location handy if you want; for now reset all)
+      // Reset form
       setComicTitle("");
       setIssueNumber("");
       setSignedBy("");
       setSignedDate("");
       setSigningLocation("");
       setWitnessedBy("");
+      setBookFile(null);
+
+      const bookInput = document.getElementById("bookFile") as HTMLInputElement | null;
+      if (bookInput) bookInput.value = "";
     } catch (err: any) {
       setError(err?.message || "Failed to issue COA.");
     }
@@ -91,9 +130,6 @@ export default function AdminCreateCOAPage() {
             <div style={{ fontWeight: 900 }}>
               {origin ? `${origin}/cert/${createdQrId}` : `/cert/${createdQrId}`}
             </div>
-            <div style={{ marginTop: 10, color: "#666", fontWeight: 900 }}>
-              Tip: You can copy/paste this into a QR generator if needed (your certificate page also renders a QR).
-            </div>
           </div>
         ) : null}
 
@@ -120,6 +156,15 @@ export default function AdminCreateCOAPage() {
 
           <label style={label}>Witnessed By</label>
           <input style={input} value={witnessedBy} onChange={(e) => setWitnessedBy(e.target.value)} />
+
+          <label style={label}>Book photo (optional, shows on COA)</label>
+          <input
+            id="bookFile"
+            type="file"
+            accept="image/*"
+            onChange={(e) => setBookFile(e.target.files?.[0] ?? null)}
+            style={{ marginBottom: 6 }}
+          />
 
           <button style={primaryBtn} disabled={busy}>
             {busy ? "Issuing…" : "Issue COA"}
